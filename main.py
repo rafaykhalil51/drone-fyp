@@ -5,7 +5,7 @@ from video_source            import VideoSource
 from tracker                 import PersonTracker
 from detector                import PersonDetector
 from state_manager           import StateManager
-from counter                 import LineCounter
+from counter                 import LineCounter, AccessoryCounter
 from visualization           import Visualizer
 from exporter                import Exporter
 from association             import associate_accessories_to_tracks
@@ -67,11 +67,17 @@ def main(config_path="config.yaml"):
     # PersonDetector is used for standalone detect() + accessory attachment
     # (tracker.track() handles detection+tracking; accessories are attached
     #  post-hoc from the tracker results by a thin wrapper below)
-    state_mgr  = StateManager()
-    counter    = LineCounter(cnt_cfg["line"], state_mgr) if cnt_cfg["enabled"] else None
-    visualizer = Visualizer(vis_cfg, cnt_cfg if cnt_cfg["enabled"] else None)
-    exporter   = Exporter(exp_cfg["csv_path"], exp_cfg["summary_path"])
-    writer     = build_writer(vid_cfg["output"], fps, source.width, source.height)
+    state_mgr    = StateManager()
+    counter      = LineCounter(cnt_cfg["line"], state_mgr) if cnt_cfg["enabled"] else None
+    acc_counter  = AccessoryCounter()
+    visualizer   = Visualizer(vis_cfg, cnt_cfg if cnt_cfg["enabled"] else None)
+    exporter     = Exporter(
+        csv_path          = exp_cfg["csv_path"],
+        summary_path      = exp_cfg["summary_path"],
+        final_report_csv  = exp_cfg.get("final_report_csv"),
+        final_report_json = exp_cfg.get("final_report_json"),
+    )
+    writer       = build_writer(vid_cfg["output"], fps, source.width, source.height)
 
     logger.info("Processing: '%s' -> '%s'", vid_cfg["source"], vid_cfg["output"])
     t0 = time.time(); frame_idx = 0
@@ -133,14 +139,24 @@ def main(config_path="config.yaml"):
                     counter.count_in, counter.count_out, counter.total)
 
     # Final accessory summary from temporal voting
-    summary = state_mgr.accessory_summary()
-    if summary:
+    vote_summary = state_mgr.accessory_summary()
+    if vote_summary:
         logger.info("Accessory summary (confirmed via %d-frame window @ %.0f%%):",
                     vote_window, vote_threshold * 100)
-        for tid, accs in sorted(summary.items()):
+        for tid, accs in sorted(vote_summary.items()):
             logger.info("  track_id=%-3d  %s", tid, ", ".join(accs))
     else:
         logger.info("No accessories confirmed by temporal voting.")
+
+    # Compute per-accessory totals and write final reports
+    acc_counter.compute(state_mgr)
+    exporter.save_final_report(
+        state_manager=state_mgr,
+        line_counter=counter,
+        acc_counter=acc_counter,
+    )
+    logger.info("Accessory totals: %s",
+                "  ".join(f"{k}={v}" for k, v in acc_counter.totals.items()))
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()

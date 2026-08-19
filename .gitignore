@@ -1,4 +1,4 @@
-﻿# Python venv
+# Python venv
 venv/
 
 # YOLO model weights
@@ -8,12 +8,16 @@ venv/
 output_annotated.mp4
 tracks.csv
 summary.json
+final_report.csv
+final_report.json
 input.mp4
+*.jpg
 
 # Temp scripts
 write_assoc.py
 rewrite_all.py
 fix_assoc.py
+patch_*.py
 
 # YOLO run artifacts
 runs/

@@ -41,8 +41,10 @@ visualization:
 
 # -- Export --
 export:
-  csv_path: "tracks.csv"
-  summary_path: "summary.json"
+  csv_path:           "tracks.csv"
+  summary_path:       "summary.json"
+  final_report_csv:   "final_report.csv"
+  final_report_json:  "final_report.json"
 
 # -- Accessories --
 accessories:
