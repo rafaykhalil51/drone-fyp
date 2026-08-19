@@ -191,36 +191,31 @@ st.markdown("""
 # ── TOP HUD METRIC CARDS ────────────────────────────────────────────────────
 m_cols = st.columns(6)
 
-def render_hud_card(col, title, value, icon, sub, color_class, val_color="#ffffff"):
-    with col:
-        st.markdown(f"""
-        <div class="hud-metric {color_class}">
-            <div style="display: flex; justify-content: space-between; align-items: center;">
-                <span class="hud-label">{title}</span>
-                <span style="font-size: 16px;">{icon}</span>
-            </div>
-            <div class="hud-val" style="color: {val_color}; margin-top: 4px;">{value}</div>
-            <div class="hud-sub">{sub}</div>
+def render_hud_card(placeholder, title, value, icon, sub, color_class, val_color="#ffffff"):
+    html = f"""
+    <div class="hud-metric {color_class}">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span class="hud-label">{title}</span>
+            <span style="font-size: 16px;">{icon}</span>
         </div>
-        """, unsafe_allow_html=True)
+        <div class="hud-val" style="color: {val_color}; margin-top: 4px;">{value}</div>
+        <div class="hud-sub">{sub}</div>
+    </div>
+    """
+    placeholder.markdown(html, unsafe_allow_html=True)
 
 # Placeholders for live metric cards
 metric_placeholders = [col.empty() for col in m_cols]
 
 def update_top_metrics(tot_p=0, tot_cap=0, tot_mask=0, tot_glass=0, tot_head=0, tot_none=0):
     pct = lambda v: f"{round((v/tot_p)*100)}%" if tot_p > 0 else "0%"
-    with metric_placeholders[0]:
-        render_hud_card(st, "TARGETS", tot_p, "👥", "Tracked Persons", "hud-metric-cyan", "#00f2fe")
-    with metric_placeholders[1]:
-        render_hud_card(st, "CRANIAL", tot_cap, "🧢", f"{pct(tot_cap)} Caps/Hats", "hud-metric-amber", "#ffb703")
-    with metric_placeholders[2]:
-        render_hud_card(st, "RESPIRATORY", tot_mask, "😷", f"{pct(tot_mask)} Face Masks", "hud-metric-orange", "#fb8500")
-    with metric_placeholders[3]:
-        render_hud_card(st, "OPTICAL", tot_glass, "👓", f"{pct(tot_glass)} Glasses", "hud-metric-purple", "#c77dff")
-    with metric_placeholders[4]:
-        render_hud_card(st, "ACOUSTIC", tot_head, "🎧", f"{pct(tot_head)} Headphones", "hud-metric-green", "#00ff87")
-    with metric_placeholders[5]:
-        render_hud_card(st, "PLAIN", tot_none, "👤", f"{pct(tot_none)} No Gear", "hud-metric-slate", "#94a3b8")
+    render_hud_card(metric_placeholders[0], "TARGETS", tot_p, "👥", "Tracked Persons", "hud-metric-cyan", "#00f2fe")
+    render_hud_card(metric_placeholders[1], "CRANIAL", tot_cap, "🧢", f"{pct(tot_cap)} Caps/Hats", "hud-metric-amber", "#ffb703")
+    render_hud_card(metric_placeholders[2], "RESPIRATORY", tot_mask, "😷", f"{pct(tot_mask)} Face Masks", "hud-metric-orange", "#fb8500")
+    render_hud_card(metric_placeholders[3], "OPTICAL", tot_glass, "👓", f"{pct(tot_glass)} Glasses", "hud-metric-purple", "#c77dff")
+    render_hud_card(metric_placeholders[4], "ACOUSTIC", tot_head, "🎧", f"{pct(tot_head)} Headphones", "hud-metric-green", "#00ff87")
+    render_hud_card(metric_placeholders[5], "PLAIN", tot_none, "👤", f"{pct(tot_none)} No Gear", "hud-metric-slate", "#94a3b8")
+
 
 # Initial render
 update_top_metrics()
