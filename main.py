@@ -31,6 +31,7 @@ import yaml
 from video_source            import VideoSource
 from tracker                 import PersonTracker
 from detector                import PersonDetector
+from accessory_detector      import AccessoryDetector
 from state_manager           import StateManager
 from counter                 import LineCounter, AccessoryCounter
 from visualization           import Visualizer
@@ -80,22 +81,12 @@ def main(config_path: str = "config.yaml"):
     source = VideoSource(vid_cfg["source"])
     fps = float(vid_cfg["fps_override"] or source.fps)
 
-    # 1. Accessory Detector (Mock by default, or Real if configured)
-    accessory_detector = None
-    if acc_cfg.get("use_mock_accessories", True):
-        from mock_accessory_detector import MockAccessoryDetector
-        accessory_detector = MockAccessoryDetector(
-            seed=acc_cfg.get("mock_seed", 42),
-            max_per_person=acc_cfg.get("mock_max_per_person", 2),
-        )
-        logger.info("Mock Accessory Detector ENABLED (seed=%d)", acc_cfg.get("mock_seed", 42))
-    elif acc_cfg.get("use_real_accessories", False):
-        from real_accessory_detector import RealAccessoryDetector
-        accessory_detector = RealAccessoryDetector(
-            model_path=acc_cfg.get("real_model", "yolov8s-world.pt"),
-            confidence=acc_cfg.get("confidence", 0.25)
-        )
-        logger.info("Real Accessory Detector ENABLED (YOLO-World)")
+    # 1. Accessory Detector (loads accessory_best.pt, runs alongside person detector)
+    accessory_detector = AccessoryDetector(
+        model_path=acc_cfg.get("model_path", "accessory_best.pt"),
+        confidence=acc_cfg.get("confidence", 0.30),
+        iou_threshold=acc_cfg.get("iou_threshold", 0.50),
+    )
 
     # 2. Person Tracker (YOLOv8 + BotSORT)
     tracker = PersonTracker(
@@ -130,17 +121,10 @@ def main(config_path: str = "config.yaml"):
                 # Step 1: Detect & Track Persons with persistent IDs
                 tracks = tracker.track(frame)
 
-                # Step 2: Detect Accessories (Mock or Real)
+                # Step 2: Detect Accessories using accessory model (accessory_best.pt)
                 if accessory_detector is not None and tracks:
                     person_boxes = [t["xyxy"] for t in tracks]
-                    if hasattr(accessory_detector, "detect"):
-                        # Support both mock and real detector signatures
-                        try:
-                            all_accs = accessory_detector.detect(person_boxes, frame=frame)
-                        except TypeError:
-                            all_accs = accessory_detector.detect(person_boxes)
-                    else:
-                        all_accs = []
+                    all_accs = accessory_detector.detect(frame, person_boxes=person_boxes)
 
                     # Step 3: Spatial Association (upper 40% head/shoulder region)
                     acc_map = associate_accessories_to_tracks(

@@ -48,12 +48,12 @@ export:
 
 # -- Accessories --
 accessories:
-  use_mock_accessories: true   # set false to disable; swap in a real detector here
-  mock_seed: 42                # fixed seed -> reproducible fake detections
-  mock_max_per_person: 2       # max accessories assigned per person per frame
-  head_fraction: 0.40          # upper fraction of person box used as head region
-  vote_window:    30           # sliding-window size for temporal voting (frames)
-  vote_threshold: 0.60         # min positive rate to confirm an accessory
+  model_path: "accessory_best.pt"  # trained YOLO model weights for cap/mask/glasses/headphones
+  confidence: 0.30                 # detection confidence threshold
+  iou_threshold: 0.50              # NMS IoU threshold
+  head_fraction: 0.40              # upper fraction of person box used as head region
+  vote_window: 30                  # sliding-window size for temporal voting (frames)
+  vote_threshold: 0.60             # min positive rate to confirm an accessory
 
 # -- Logging --
 logging:

@@ -14,8 +14,8 @@ from pathlib import Path
 from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
 
 from detector import PersonDetector
+from accessory_detector import AccessoryDetector
 from mock_accessory_detector import MockAccessoryDetector
-from real_accessory_detector import RealAccessoryDetector
 from association import associate_accessories_to_tracks
 from visualization import Visualizer
 from state_manager import StateManager
@@ -32,9 +32,9 @@ Path("uploads").mkdir(exist_ok=True)
 Path("static").mkdir(exist_ok=True)
 
 # Preload models
-logger.info("Preloading PersonDetector and RealAccessoryDetector...")
+logger.info("Preloading PersonDetector and AccessoryDetector (accessory_best.pt)...")
 person_detector = PersonDetector("yolov8n.pt", confidence=0.30, iou_threshold=0.5)
-real_acc_detector = RealAccessoryDetector("yolov8s-world.pt", confidence=0.20)
+acc_detector = AccessoryDetector(model_path="accessory_best.pt", confidence=0.25)
 mock_acc_detector = MockAccessoryDetector(seed=42, max_per_person=2)
 visualizer = Visualizer(vis_cfg={"box_thickness": 2, "text_scale": 0.65, "show_confidence": True})
 
@@ -58,7 +58,7 @@ def analyze_image_file(image_path: str, mode: str = "real"):
 
     # 2. Detect Accessories
     if mode == "real":
-        raw_accs = real_acc_detector.detect([t["xyxy"] for t in tracks], frame=frame)
+        raw_accs = acc_detector.detect(frame, person_boxes=[t["xyxy"] for t in tracks])
     else:
         raw_accs = mock_acc_detector.detect([t["xyxy"] for t in tracks])
 
