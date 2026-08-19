@@ -29,7 +29,7 @@ from exporter import Exporter
 
 # Page Configuration
 st.set_page_config(
-    page_title="A.E.G.I.S. // Student Vision Analytics",
+    page_title="A.E.G.I.S. // Vision Intelligence",
     page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed",
@@ -199,7 +199,6 @@ def render_hud_card(placeholder, title, value, icon, sub, color_class, val_color
     """
     placeholder.markdown(html, unsafe_allow_html=True)
 
-# Placeholders for live metric cards
 metric_placeholders = [col.empty() for col in m_cols]
 
 def update_top_metrics(tot_p=0, tot_cap=0, tot_mask=0, tot_glass=0, tot_head=0, tot_none=0):
@@ -211,9 +210,7 @@ def update_top_metrics(tot_p=0, tot_cap=0, tot_mask=0, tot_glass=0, tot_head=0, 
     render_hud_card(metric_placeholders[4], "ACOUSTIC", tot_head, "🎧", f"{pct(tot_head)} Headphones", "hud-metric-green", "#00ff87")
     render_hud_card(metric_placeholders[5], "PLAIN", tot_none, "👤", f"{pct(tot_none)} No Gear", "hud-metric-slate", "#94a3b8")
 
-# Initial render
 update_top_metrics()
-
 st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
 
 # ── MAIN 2-COLUMN WORKSPACE ─────────────────────────────────────────────────
@@ -226,7 +223,6 @@ with left_col:
     </div>
     """, unsafe_allow_html=True)
 
-    # Video / Media Box
     video_box = st.empty()
     progress_box = st.empty()
     status_box = st.empty()
@@ -251,12 +247,6 @@ with left_col:
     process_btn = st.button("🚀 ENGAGE VISION ANALYTICS ENGINE")
     st.markdown("</div>", unsafe_allow_html=True)
 
-    if not uploaded_file and not use_sample:
-        if os.path.exists("uploads/classroom_sample.jpg"):
-            video_box.image("uploads/classroom_sample.jpg", use_container_width=True)
-        elif os.path.exists("output_annotated.mp4"):
-            video_box.video("output_annotated.mp4")
-
 with right_col:
     st.markdown("""
     <div style="font-family: 'Orbitron', sans-serif; font-size: 15px; font-weight: 700; color: #c77dff; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
@@ -264,7 +254,6 @@ with right_col:
     </div>
     """, unsafe_allow_html=True)
 
-    # Plotly Futuristic Donut Chart
     chart_placeholder = st.empty()
 
     def render_cyber_chart(tot_cap=0, tot_mask=0, tot_glass=0, tot_head=0, tot_none=0):
@@ -299,19 +288,19 @@ with right_col:
 
     render_cyber_chart()
 
-    # Target Matrix Table
     st.markdown("<div style='font-family: Orbitron; font-size: 13px; font-weight: 700; color: #00ff87; margin: 12px 0 6px 0;'>🎯 ACTIVE TARGET REGISTER</div>", unsafe_allow_html=True)
     table_placeholder = st.empty()
 
-    # Export Bay
     st.markdown("<div style='font-family: Orbitron; font-size: 13px; font-weight: 700; color: #ffb703; margin: 14px 0 6px 0;'>💾 INTELLIGENCE DOSSIER EXPORT</div>", unsafe_allow_html=True)
     down_col1, down_col2 = st.columns(2)
     csv_down_placeholder = down_col1.empty()
     json_down_placeholder = down_col2.empty()
 
 
-# ── EXECUTION ENGINE (HANDLES BOTH IMAGES & VIDEOS) ─────────────────────────
-if process_btn or use_sample:
+# ── AUTO-TRIGGER EXECUTION (RUNS WHEN FILE UPLOADED OR BUTTON CLICKED) ───────
+should_run = process_btn or use_sample or (uploaded_file is not None)
+
+if should_run:
     temp_input_path = None
     if uploaded_file is not None:
         tfile = tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix)
@@ -344,7 +333,7 @@ if process_btn or use_sample:
     t0 = time.time()
 
     if is_image:
-        # ── 1. SINGLE PHOTO PROCESSING ──────────────────────────────────────
+        # ── 1. PHOTO PROCESSING (INSTANT) ───────────────────────────────────
         frame = cv2.imread(temp_input_path)
         if frame is None:
             status_box.error("Could not decode image file.")
@@ -363,7 +352,7 @@ if process_btn or use_sample:
         # Detect Accessories
         raw_accs = acc_detector.detect(frame, person_boxes=[t["xyxy"] for t in tracks])
 
-        # Spatial Association (head region)
+        # Spatial Association (upper 45% head region)
         acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.45)
         for t in tracks:
             t["accessories"] = acc_map.get(t["track_id"], [])
@@ -373,7 +362,6 @@ if process_btn or use_sample:
         for t in tracks:
             tid = t["track_id"]
             state_mgr.update_state(tid, t.get("accessories", []), 0)
-            # Direct presence sets verified flag on single image
             state_mgr.apply_temporal_voting(tid, window=1, threshold=0.50)
 
         # Compute metrics
@@ -524,3 +512,7 @@ if process_btn or use_sample:
                 mime="application/json",
                 use_container_width=True
             )
+else:
+    # Default standby image if nothing is running
+    if os.path.exists("uploads/classroom_sample.jpg"):
+        video_box.image("uploads/classroom_sample.jpg", use_container_width=True)
