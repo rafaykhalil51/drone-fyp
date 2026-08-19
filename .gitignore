@@ -1,0 +1,29 @@
+﻿# Python venv
+venv/
+
+# YOLO model weights
+*.pt
+
+# Generated outputs (keep source code only)
+output_annotated.mp4
+tracks.csv
+summary.json
+input.mp4
+
+# Temp scripts
+write_assoc.py
+rewrite_all.py
+fix_assoc.py
+
+# YOLO run artifacts
+runs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+
+# OS
+.DS_Store
+Thumbs.db

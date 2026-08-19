@@ -1,0 +1,49 @@
+# ---------------------------------------------
+# config.yaml  -  Central configuration file
+# ---------------------------------------------
+
+# -- Video I/O --
+video:
+  source: "input.mp4"
+  output: "output_annotated.mp4"
+  fps_override: null
+
+# -- Detection --
+detection:
+  model_path: "yolov8n.pt"
+  confidence: 0.40
+  iou_threshold: 0.50
+  person_class_id: 0
+
+# -- Tracking --
+tracking:
+  tracker_config: "botsort.yaml"
+  persist: true
+
+# -- Counting --
+counting:
+  enabled: true
+  line:
+    x1: 0
+    y1: 360
+    x2: 1280
+    y2: 360
+
+# -- Visualization --
+visualization:
+  box_color: [0, 255, 0]
+  id_color:  [0, 0, 255]
+  text_scale: 0.7
+  text_thickness: 2
+  box_thickness: 2
+  show_confidence: true
+  show_fps: true
+
+# -- Export --
+export:
+  csv_path: "tracks.csv"
+  summary_path: "summary.json"
+
+# -- Logging --
+logging:
+  level: "INFO"
