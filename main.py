@@ -37,7 +37,9 @@ def main(config_path="config.yaml"):
     cnt_cfg = cfg["counting"]
     vis_cfg = cfg["visualization"]
     exp_cfg = cfg["export"]
-    acc_cfg = cfg.get("accessories", {})
+    acc_cfg        = cfg.get("accessories", {})
+    vote_window    = acc_cfg.get("vote_window",    30)
+    vote_threshold = acc_cfg.get("vote_threshold", 0.6)
 
     logger.info("Initialising pipeline ...")
     source  = VideoSource(vid_cfg["source"])
@@ -99,6 +101,19 @@ def main(config_path="config.yaml"):
                         t.setdefault("accessories", [])
 
                 state_mgr.update(frame_idx, tracks)
+
+                # Record accessory evidence + refresh stable voting flags
+                for t in tracks:
+                    tid = t["track_id"]
+                    if tid < 0:
+                        continue
+                    state_mgr.update_state(tid, t.get("accessories", []), frame_idx)
+                    state_mgr.apply_temporal_voting(
+                        tid,
+                        window=vote_window,
+                        threshold=vote_threshold,
+                    )
+
                 if counter: counter.update(tracks)
                 exporter.log_frame(frame_idx, tracks)
                 annotated = visualizer.draw(frame, tracks, counter)
@@ -116,6 +131,16 @@ def main(config_path="config.yaml"):
     if counter:
         logger.info("Line count  IN=%d  OUT=%d  TOTAL=%d",
                     counter.count_in, counter.count_out, counter.total)
+
+    # Final accessory summary from temporal voting
+    summary = state_mgr.accessory_summary()
+    if summary:
+        logger.info("Accessory summary (confirmed via %d-frame window @ %.0f%%):",
+                    vote_window, vote_threshold * 100)
+        for tid, accs in sorted(summary.items()):
+            logger.info("  track_id=%-3d  %s", tid, ", ".join(accs))
+    else:
+        logger.info("No accessories confirmed by temporal voting.")
 
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
