@@ -1,7 +1,7 @@
 """
 dashboard.py
 ------------
-Futuristic Sci-Fi / Cyberpunk HUD Video Analytics Dashboard
+Futuristic Sci-Fi / Cyberpunk HUD Video & Image Analytics Dashboard
 Powered by Streamlit, YOLOv8, BotSORT & YOLO-World.
 """
 
@@ -40,7 +40,6 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;600&display=swap');
 
-    /* Global Dark Cyber Theme */
     .stApp {
         background-color: #060913;
         background-image: 
@@ -56,7 +55,6 @@ st.markdown("""
         letter-spacing: 1.5px;
     }
 
-    /* Cyber Glass Cards */
     .cyber-card {
         background: rgba(13, 20, 36, 0.75);
         backdrop-filter: blur(16px);
@@ -74,7 +72,6 @@ st.markdown("""
         background: linear-gradient(90deg, transparent, #00f2fe, #9d4edd, transparent);
     }
 
-    /* Futuristic HUD Metric Cards */
     .hud-metric {
         background: rgba(15, 23, 42, 0.85);
         border: 1px solid rgba(255, 255, 255, 0.08);
@@ -114,7 +111,6 @@ st.markdown("""
         margin-top: 4px;
     }
 
-    /* Button Styling */
     .stButton>button {
         background: linear-gradient(135deg, #00f2fe 0%, #4facfe 50%, #6b21a8 100%) !important;
         color: #ffffff !important;
@@ -132,7 +128,6 @@ st.markdown("""
         transform: scale(1.01) !important;
     }
 
-    /* Telemetry Pill */
     .telemetry-pill {
         display: inline-flex;
         align-items: center;
@@ -179,7 +174,7 @@ st.markdown("""
     <div style="display: flex; gap: 10px; align-items: center;">
         <div class="telemetry-pill">
             <div class="pulse-dot"></div>
-            SYS: OPTIMAL // 60 FPS HUD
+            SYS: OPTIMAL // LIVE HUD
         </div>
         <div class="telemetry-pill" style="color: #c77dff; border-color: rgba(199, 125, 255, 0.3); background: rgba(199, 125, 255, 0.08);">
             CORE: YOLOv8 + BotSORT
@@ -216,7 +211,6 @@ def update_top_metrics(tot_p=0, tot_cap=0, tot_mask=0, tot_glass=0, tot_head=0, 
     render_hud_card(metric_placeholders[4], "ACOUSTIC", tot_head, "🎧", f"{pct(tot_head)} Headphones", "hud-metric-green", "#00ff87")
     render_hud_card(metric_placeholders[5], "PLAIN", tot_none, "👤", f"{pct(tot_none)} No Gear", "hud-metric-slate", "#94a3b8")
 
-
 # Initial render
 update_top_metrics()
 
@@ -243,14 +237,14 @@ with left_col:
 
     c_up, c_samp = st.columns([3, 2])
     with c_up:
-        uploaded_file = st.file_uploader("Upload Tactical Video / Imagery", type=["mp4", "avi", "mov", "jpg", "jpeg", "png"])
+        uploaded_file = st.file_uploader("Upload Photo / Video (JPG, PNG, MP4, AVI)", type=["mp4", "avi", "mov", "jpg", "jpeg", "png", "webp"])
     with c_samp:
         st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
         use_sample = st.button("🎯 LOAD SAMPLE (input.mp4)")
 
     c_cfg1, c_cfg2 = st.columns(2)
     with c_cfg1:
-        conf_thresh = st.slider("AI Confidence Gate (NMS Threshold)", 0.10, 0.90, 0.30, 0.05)
+        conf_thresh = st.slider("AI Confidence Gate (NMS Threshold)", 0.10, 0.90, 0.25, 0.05)
     with c_cfg2:
         model_path = st.text_input("Neural Weights Identifier", value="accessory_best.pt")
 
@@ -258,10 +252,10 @@ with left_col:
     st.markdown("</div>", unsafe_allow_html=True)
 
     if not uploaded_file and not use_sample:
-        if os.path.exists("output_annotated.mp4"):
+        if os.path.exists("uploads/classroom_sample.jpg"):
+            video_box.image("uploads/classroom_sample.jpg", use_container_width=True)
+        elif os.path.exists("output_annotated.mp4"):
             video_box.video("output_annotated.mp4")
-        elif os.path.exists("input.mp4"):
-            video_box.info("Sample video standby (input.mp4). Press 'ENGAGE' to execute neural tracking.")
 
 with right_col:
     st.markdown("""
@@ -270,14 +264,13 @@ with right_col:
     </div>
     """, unsafe_allow_html=True)
 
-    # Plotly Futuristic Radar & Donut Chart
+    # Plotly Futuristic Donut Chart
     chart_placeholder = st.empty()
 
     def render_cyber_chart(tot_cap=0, tot_mask=0, tot_glass=0, tot_head=0, tot_none=0):
         categories = ['Caps 🧢', 'Masks 😷', 'Glasses 👓', 'Headphones 🎧', 'Plain 👤']
         values = [tot_cap, tot_mask, tot_glass, tot_head, tot_none]
         
-        # Donut Chart with Neon Palette
         fig = go.Figure(data=[go.Pie(
             labels=categories,
             values=values,
@@ -317,9 +310,8 @@ with right_col:
     json_down_placeholder = down_col2.empty()
 
 
-# ── EXECUTION ENGINE ────────────────────────────────────────────────────────
+# ── EXECUTION ENGINE (HANDLES BOTH IMAGES & VIDEOS) ─────────────────────────
 if process_btn or use_sample:
-    # 1. Resolve source
     temp_input_path = None
     if uploaded_file is not None:
         tfile = tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix)
@@ -327,26 +319,17 @@ if process_btn or use_sample:
         temp_input_path = tfile.name
     elif os.path.exists("input.mp4"):
         temp_input_path = "input.mp4"
+    elif os.path.exists("uploads/classroom_sample.jpg"):
+        temp_input_path = "uploads/classroom_sample.jpg"
     else:
         status_box.error("Input stream unavailable. Upload a media file or provide input.mp4.")
         st.stop()
 
+    file_ext = Path(temp_input_path).suffix.lower()
+    is_image = file_ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp"]
+
     status_box.markdown("<div class='telemetry-pill' style='color: #ffb703; border-color: #ffb703;'>INITIALIZING NEURAL ARRAYS (YOLOv8 + Accessory Core)...</div>", unsafe_allow_html=True)
 
-    try:
-        source = VideoSource(temp_input_path)
-    except Exception as e:
-        status_box.error(f"Stream failure: {e}")
-        st.stop()
-
-    tracker = PersonTracker(
-        model_path="yolov8n.pt",
-        confidence=conf_thresh,
-        iou_threshold=0.50,
-        tracker_config="botsort.yaml",
-        persist=True,
-        person_class_id=0,
-    )
     acc_detector = AccessoryDetector(model_path=model_path, confidence=conf_thresh)
     state_mgr = StateManager()
     acc_counter = AccessoryCounter()
@@ -358,76 +341,148 @@ if process_btn or use_sample:
         final_report_json="final_report.json",
     )
 
-    out_temp = "output_annotated.mp4"
-    writer = cv2.VideoWriter(out_temp, cv2.VideoWriter_fourcc(*"mp4v"), source.fps, (source.width, source.height))
-
-    total_frames = max(source.total_frames, 1)
-    frame_idx = 0
     t0 = time.time()
-    prog_bar = progress_box.progress(0)
 
-    try:
-        with source:
-            for frame in source:
-                # 1. Person Tracking
-                tracks = tracker.track(frame)
+    if is_image:
+        # ── 1. SINGLE PHOTO PROCESSING ──────────────────────────────────────
+        frame = cv2.imread(temp_input_path)
+        if frame is None:
+            status_box.error("Could not decode image file.")
+            st.stop()
 
-                # 2. Accessory Inference
-                person_boxes = [t["xyxy"] for t in tracks] if tracks else []
-                raw_accs = acc_detector.detect(frame, person_boxes=person_boxes) if tracks else []
+        # Detect Persons
+        p_detector = PersonDetector("yolov8n.pt", confidence=conf_thresh, iou_threshold=0.50)
+        person_dets = p_detector.detect(frame)
+        tracks = [{
+            "track_id": i + 1,
+            "xyxy": p["xyxy"],
+            "confidence": p["confidence"],
+            "accessories": []
+        } for i, p in enumerate(person_dets)]
 
-                # 3. Upper 40% Head-Region Association
-                acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.40)
-                for t in tracks:
-                    t["accessories"] = acc_map.get(t["track_id"], [])
+        # Detect Accessories
+        raw_accs = acc_detector.detect(frame, person_boxes=[t["xyxy"] for t in tracks])
 
-                # 4. State & Temporal Voting
-                state_mgr.update(frame_idx, tracks)
-                for t in tracks:
-                    tid = t["track_id"]
-                    if tid >= 0:
-                        state_mgr.update_state(tid, t.get("accessories", []), frame_idx)
-                        state_mgr.apply_temporal_voting(tid, window=30, threshold=0.60)
+        # Spatial Association (head region)
+        acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.45)
+        for t in tracks:
+            t["accessories"] = acc_map.get(t["track_id"], [])
 
-                # 5. Live Metrics Computation
-                all_st = list(state_mgr.all_states().values())
-                tot_p = state_mgr.total_unique
-                tot_cap = sum(1 for s in all_st if s.final_cap)
-                tot_mask = sum(1 for s in all_st if s.final_mask)
-                tot_glass = sum(1 for s in all_st if s.final_glasses)
-                tot_head = sum(1 for s in all_st if s.final_headphones)
-                tot_none = sum(1 for s in all_st if not (s.final_cap or s.final_mask or s.final_glasses or s.final_headphones))
+        # Update State
+        state_mgr.update(0, tracks)
+        for t in tracks:
+            tid = t["track_id"]
+            state_mgr.update_state(tid, t.get("accessories", []), 0)
+            # Direct presence sets verified flag on single image
+            state_mgr.apply_temporal_voting(tid, window=1, threshold=0.50)
 
-                # Update HUD and Charts
-                live_totals = {"persons": tot_p, "caps": tot_cap, "masks": tot_mask, "glasses": tot_glass, "headphones": tot_head}
-                annotated = visualizer.draw(frame, tracks, live_totals=live_totals)
-                writer.write(annotated)
+        # Compute metrics
+        all_st = list(state_mgr.all_states().values())
+        tot_p = len(tracks)
+        tot_cap = sum(1 for s in all_st if s.final_cap)
+        tot_mask = sum(1 for s in all_st if s.final_mask)
+        tot_glass = sum(1 for s in all_st if s.final_glasses)
+        tot_head = sum(1 for s in all_st if s.final_headphones)
+        tot_none = sum(1 for s in all_st if not (s.final_cap or s.final_mask or s.final_glasses or s.final_headphones))
 
-                frame_idx += 1
-                if frame_idx % 12 == 0:
-                    prog_bar.progress(min(frame_idx / total_frames, 1.0))
-                    update_top_metrics(tot_p, tot_cap, tot_mask, tot_glass, tot_head, tot_none)
-                    render_cyber_chart(tot_cap, tot_mask, tot_glass, tot_head, tot_none)
-                    rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                    video_box.image(rgb, channels="RGB", use_container_width=True)
+        # Update HUD Metrics & Donut Chart
+        update_top_metrics(tot_p, tot_cap, tot_mask, tot_glass, tot_head, tot_none)
+        render_cyber_chart(tot_cap, tot_mask, tot_glass, tot_head, tot_none)
 
-    finally:
-        writer.release()
-        exporter.save(state_mgr)
+        # Draw annotated image & display
+        live_totals = {"persons": tot_p, "caps": tot_cap, "masks": tot_mask, "glasses": tot_glass, "headphones": tot_head}
+        annotated = visualizer.draw(frame, tracks, live_totals=live_totals)
+        rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+        video_box.image(rgb, channels="RGB", use_container_width=True)
 
-    prog_bar.progress(1.0)
-    elapsed = time.time() - t0
-    status_box.markdown(f"""
-    <div class="telemetry-pill" style="color: #00ff87; border-color: #00ff87; font-size: 12px;">
-        ⚡ MISSION COMPLETE: {frame_idx} FRAMES // {elapsed:.1f}s ELAPSED // {frame_idx/elapsed:.1f} FPS // {state_mgr.total_unique} TARGETS IDENTIFIED
-    </div>
-    """, unsafe_allow_html=True)
+        elapsed = time.time() - t0
+        status_box.markdown(f"""
+        <div class="telemetry-pill" style="color: #00ff87; border-color: #00ff87; font-size: 12px;">
+            ⚡ IMAGE SCAN COMPLETE: {elapsed:.2f}s INFERENCE // {tot_p} STUDENTS DETECTED
+        </div>
+        """, unsafe_allow_html=True)
 
-    # Compute Final Reports
+    else:
+        # ── 2. VIDEO STREAM PROCESSING ──────────────────────────────────────
+        try:
+            source = VideoSource(temp_input_path)
+        except Exception as e:
+            status_box.error(f"Stream failure: {e}")
+            st.stop()
+
+        tracker = PersonTracker(
+            model_path="yolov8n.pt",
+            confidence=conf_thresh,
+            iou_threshold=0.50,
+            tracker_config="botsort.yaml",
+            persist=True,
+            person_class_id=0,
+        )
+
+        out_temp = "output_annotated.mp4"
+        writer = cv2.VideoWriter(out_temp, cv2.VideoWriter_fourcc(*"mp4v"), source.fps, (source.width, source.height))
+
+        total_frames = max(source.total_frames, 1)
+        frame_idx = 0
+        prog_bar = progress_box.progress(0)
+
+        try:
+            with source:
+                for frame in source:
+                    tracks = tracker.track(frame)
+                    person_boxes = [t["xyxy"] for t in tracks] if tracks else []
+                    raw_accs = acc_detector.detect(frame, person_boxes=person_boxes) if tracks else []
+
+                    acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.40)
+                    for t in tracks:
+                        t["accessories"] = acc_map.get(t["track_id"], [])
+
+                    state_mgr.update(frame_idx, tracks)
+                    for t in tracks:
+                        tid = t["track_id"]
+                        if tid >= 0:
+                            state_mgr.update_state(tid, t.get("accessories", []), frame_idx)
+                            state_mgr.apply_temporal_voting(tid, window=30, threshold=0.60)
+
+                    all_st = list(state_mgr.all_states().values())
+                    tot_p = state_mgr.total_unique
+                    tot_cap = sum(1 for s in all_st if s.final_cap)
+                    tot_mask = sum(1 for s in all_st if s.final_mask)
+                    tot_glass = sum(1 for s in all_st if s.final_glasses)
+                    tot_head = sum(1 for s in all_st if s.final_headphones)
+                    tot_none = sum(1 for s in all_st if not (s.final_cap or s.final_mask or s.final_glasses or s.final_headphones))
+
+                    live_totals = {"persons": tot_p, "caps": tot_cap, "masks": tot_mask, "glasses": tot_glass, "headphones": tot_head}
+                    annotated = visualizer.draw(frame, tracks, live_totals=live_totals)
+                    writer.write(annotated)
+
+                    frame_idx += 1
+                    if frame_idx % 12 == 0:
+                        prog_bar.progress(min(frame_idx / total_frames, 1.0))
+                        update_top_metrics(tot_p, tot_cap, tot_mask, tot_glass, tot_head, tot_none)
+                        render_cyber_chart(tot_cap, tot_mask, tot_glass, tot_head, tot_none)
+                        rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                        video_box.image(rgb, channels="RGB", use_container_width=True)
+
+        finally:
+            writer.release()
+            exporter.save(state_mgr)
+
+        prog_bar.progress(1.0)
+        elapsed = time.time() - t0
+        status_box.markdown(f"""
+        <div class="telemetry-pill" style="color: #00ff87; border-color: #00ff87; font-size: 12px;">
+            ⚡ MISSION COMPLETE: {frame_idx} FRAMES // {elapsed:.1f}s ELAPSED // {frame_idx/elapsed:.1f} FPS // {state_mgr.total_unique} TARGETS IDENTIFIED
+        </div>
+        """, unsafe_allow_html=True)
+
+        if os.path.exists(out_temp):
+            video_box.video(out_temp)
+
+    # ── 3. COMPUTE FINAL REPORTS & POPULATE TABLE ────────────────────────────
     acc_counter.compute(state_mgr)
     exporter.save_final_report(state_manager=state_mgr, acc_counter=acc_counter)
 
-    # Render Final Target Table
     table_rows = []
     for tid, s in sorted(state_mgr.all_states().items()):
         accs = []
@@ -448,10 +503,6 @@ if process_btn or use_sample:
     if table_rows:
         df = pd.DataFrame(table_rows)
         table_placeholder.dataframe(df, use_container_width=True)
-
-    # Final Video View
-    if os.path.exists(out_temp):
-        video_box.video(out_temp)
 
     # Download Buttons
     if os.path.exists("final_report.csv"):
