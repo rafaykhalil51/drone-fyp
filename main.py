@@ -8,6 +8,7 @@ from state_manager           import StateManager
 from counter                 import LineCounter
 from visualization           import Visualizer
 from exporter                import Exporter
+from association             import associate_accessories_to_tracks
 
 def setup_logging(level):
     logging.basicConfig(
@@ -82,18 +83,17 @@ def main(config_path="config.yaml"):
                 if accessory_detector is not None and tracks:
                     person_boxes = [t["xyxy"] for t in tracks]
                     all_accs = accessory_detector.detect(person_boxes)
-                    # Map accessories back onto their owning track by centre-point
+
+                    # Use association.py: upper-40% head-region test + nearest-
+                    # track tie-break.  Returns {track_id -> [acc, ...]}
+                    acc_map = associate_accessories_to_tracks(
+                        tracks, all_accs,
+                        head_fraction=acc_cfg.get("head_fraction", 0.4),
+                    )
+
+                    # Merge association results back onto each track dict
                     for t in tracks:
-                        t.setdefault("accessories", [])
-                    for acc in all_accs:
-                        ax1, ay1, ax2, ay2 = acc["xyxy"]
-                        acx = (ax1 + ax2) / 2
-                        acy = (ay1 + ay2) / 2
-                        for t in tracks:
-                            dx1, dy1, dx2, dy2 = t["xyxy"]
-                            if dx1 <= acx <= dx2 and dy1 <= acy <= dy2:
-                                t["accessories"].append(acc)
-                                break
+                        t["accessories"] = acc_map.get(t["track_id"], [])
                 else:
                     for t in tracks:
                         t.setdefault("accessories", [])
