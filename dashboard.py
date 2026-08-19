@@ -1,15 +1,8 @@
 """
 dashboard.py
 ------------
-Streamlit Dashboard for Student & Accessory Vision Analytics.
-
-Layout:
-  - Left Panel : Video / Media viewer + File Uploader + Process Controls
-  - Right Panel: Live Stats (Total Persons, Caps, Masks, Glasses, Headphones) +
-                 Interactive Table + Download buttons for CSV & JSON reports.
-
-Run:
-    streamlit run dashboard.py
+Futuristic Sci-Fi / Cyberpunk HUD Video Analytics Dashboard
+Powered by Streamlit, YOLOv8, BotSORT & YOLO-World.
 """
 
 import os
@@ -18,6 +11,8 @@ import json
 import time
 import tempfile
 import pandas as pd
+import numpy as np
+import plotly.graph_objects as go
 import streamlit as st
 from pathlib import Path
 
@@ -32,108 +27,304 @@ from counter import LineCounter, AccessoryCounter
 from visualization import Visualizer
 from exporter import Exporter
 
-# Streamlit Page Config
-st.set_page_layout = "wide"
+# Page Configuration
 st.set_page_config(
-    page_title="Student & Accessory Vision Analytics",
-    page_icon="🎓",
+    page_title="A.E.G.I.S. // Student Vision Analytics",
+    page_icon="⚡",
     layout="wide",
     initial_sidebar_state="collapsed",
 )
 
-# Custom CSS styling
+# Futuristic Cyberpunk / Sci-Fi HUD Theme CSS
 st.markdown("""
 <style>
-    .reportview-container { background: #0b0f19; }
-    .metric-card {
-        background-color: #1e293b;
-        border: 1px solid #334155;
-        padding: 16px;
-        border-radius: 12px;
-        text-align: center;
+    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;600&display=swap');
+
+    /* Global Dark Cyber Theme */
+    .stApp {
+        background-color: #060913;
+        background-image: 
+            radial-gradient(at 0% 0%, rgba(0, 242, 254, 0.08) 0px, transparent 50%),
+            radial-gradient(at 100% 0%, rgba(157, 78, 221, 0.08) 0px, transparent 50%),
+            radial-gradient(at 50% 100%, rgba(0, 255, 135, 0.05) 0px, transparent 50%);
+        font-family: 'Rajdhani', sans-serif;
+        color: #e2e8f0;
     }
-    .metric-val { font-size: 28px; font-weight: bold; }
-    .stButton>button { width: 100%; border-radius: 8px; font-weight: 600; }
+
+    h1, h2, h3, h4, .orbitron {
+        font-family: 'Orbitron', sans-serif !important;
+        letter-spacing: 1.5px;
+    }
+
+    /* Cyber Glass Cards */
+    .cyber-card {
+        background: rgba(13, 20, 36, 0.75);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(0, 242, 254, 0.2);
+        border-radius: 14px;
+        padding: 18px;
+        box-shadow: 0 0 25px rgba(0, 242, 254, 0.05), inset 0 0 15px rgba(0, 242, 254, 0.02);
+        position: relative;
+        overflow: hidden;
+    }
+    .cyber-card::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; width: 100%; height: 2px;
+        background: linear-gradient(90deg, transparent, #00f2fe, #9d4edd, transparent);
+    }
+
+    /* Futuristic HUD Metric Cards */
+    .hud-metric {
+        background: rgba(15, 23, 42, 0.85);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 12px;
+        padding: 14px;
+        position: relative;
+        overflow: hidden;
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .hud-metric:hover {
+        transform: translateY(-2px);
+        border-color: rgba(0, 242, 254, 0.4);
+    }
+    .hud-metric-cyan { border-top: 3px solid #00f2fe; }
+    .hud-metric-amber { border-top: 3px solid #ffb703; }
+    .hud-metric-orange { border-top: 3px solid #fb8500; }
+    .hud-metric-purple { border-top: 3px solid #c77dff; }
+    .hud-metric-green { border-top: 3px solid #00ff87; }
+    .hud-metric-slate { border-top: 3px solid #64748b; }
+
+    .hud-val {
+        font-family: 'Orbitron', sans-serif;
+        font-size: 28px;
+        font-weight: 800;
+        line-height: 1.2;
+    }
+    .hud-label {
+        font-size: 11px;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #94a3b8;
+        font-weight: 600;
+    }
+    .hud-sub {
+        font-size: 10px;
+        color: #64748b;
+        margin-top: 4px;
+    }
+
+    /* Button Styling */
+    .stButton>button {
+        background: linear-gradient(135deg, #00f2fe 0%, #4facfe 50%, #6b21a8 100%) !important;
+        color: #ffffff !important;
+        font-family: 'Orbitron', sans-serif !important;
+        font-weight: 700 !important;
+        letter-spacing: 1.5px !important;
+        border: none !important;
+        border-radius: 10px !important;
+        box-shadow: 0 0 20px rgba(0, 242, 254, 0.3) !important;
+        transition: all 0.3s ease !important;
+        padding: 10px 20px !important;
+    }
+    .stButton>button:hover {
+        box-shadow: 0 0 35px rgba(0, 242, 254, 0.6) !important;
+        transform: scale(1.01) !important;
+    }
+
+    /* Telemetry Pill */
+    .telemetry-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 12px;
+        background: rgba(0, 242, 254, 0.08);
+        border: 1px solid rgba(0, 242, 254, 0.25);
+        border-radius: 999px;
+        font-size: 11px;
+        font-family: 'Orbitron', monospace;
+        color: #00f2fe;
+    }
+    .pulse-dot {
+        width: 8px; height: 8px;
+        background-color: #00ff87;
+        border-radius: 50%;
+        box-shadow: 0 0 10px #00ff87;
+        animation: pulse 1.5s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 135, 0.7); }
+        70% { transform: scale(1); box-shadow: 0 0 0 8px rgba(0, 255, 135, 0); }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 135, 0); }
+    }
 </style>
 """, unsafe_allow_html=True)
 
-st.title("🎓 Student & Accessory Vision Analytics Dashboard")
-st.caption("AI-Powered Multi-Object Person Tracking & Temporal Accessory Intelligence")
+# ── TOP FUTURISTIC HEADER ───────────────────────────────────────────────────
+st.markdown("""
+<div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0, 242, 254, 0.2); padding-bottom: 14px; margin-bottom: 18px;">
+    <div style="display: flex; align-items: center; gap: 14px;">
+        <div style="width: 46px; height: 46px; background: linear-gradient(135deg, #00f2fe, #9d4edd); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(0, 242, 254, 0.4); font-size: 22px;">
+            ⚡
+        </div>
+        <div>
+            <div style="font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 900; background: linear-gradient(90deg, #ffffff, #00f2fe, #c77dff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
+                A.E.G.I.S. // VISION INTELLIGENCE
+            </div>
+            <div style="font-size: 12px; color: #94a3b8; letter-spacing: 1px;">
+                AUTONOMOUS MULTI-TARGET TRACKING & CRANIAL/FACIAL ACCESSORY TELEMETRY
+            </div>
+        </div>
+    </div>
+    <div style="display: flex; gap: 10px; align-items: center;">
+        <div class="telemetry-pill">
+            <div class="pulse-dot"></div>
+            SYS: OPTIMAL // 60 FPS HUD
+        </div>
+        <div class="telemetry-pill" style="color: #c77dff; border-color: rgba(199, 125, 255, 0.3); background: rgba(199, 125, 255, 0.08);">
+            CORE: YOLOv8 + BotSORT
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
-# Layout: 2 Columns (Left: Video/Upload, Right: Stats/Reports)
+# ── TOP HUD METRIC CARDS ────────────────────────────────────────────────────
+m_cols = st.columns(6)
+
+def render_hud_card(col, title, value, icon, sub, color_class, val_color="#ffffff"):
+    with col:
+        st.markdown(f"""
+        <div class="hud-metric {color_class}">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span class="hud-label">{title}</span>
+                <span style="font-size: 16px;">{icon}</span>
+            </div>
+            <div class="hud-val" style="color: {val_color}; margin-top: 4px;">{value}</div>
+            <div class="hud-sub">{sub}</div>
+        </div>
+        """, unsafe_allow_html=True)
+
+# Placeholders for live metric cards
+metric_placeholders = [col.empty() for col in m_cols]
+
+def update_top_metrics(tot_p=0, tot_cap=0, tot_mask=0, tot_glass=0, tot_head=0, tot_none=0):
+    pct = lambda v: f"{round((v/tot_p)*100)}%" if tot_p > 0 else "0%"
+    with metric_placeholders[0]:
+        render_hud_card(st, "TARGETS", tot_p, "👥", "Tracked Persons", "hud-metric-cyan", "#00f2fe")
+    with metric_placeholders[1]:
+        render_hud_card(st, "CRANIAL", tot_cap, "🧢", f"{pct(tot_cap)} Caps/Hats", "hud-metric-amber", "#ffb703")
+    with metric_placeholders[2]:
+        render_hud_card(st, "RESPIRATORY", tot_mask, "😷", f"{pct(tot_mask)} Face Masks", "hud-metric-orange", "#fb8500")
+    with metric_placeholders[3]:
+        render_hud_card(st, "OPTICAL", tot_glass, "👓", f"{pct(tot_glass)} Glasses", "hud-metric-purple", "#c77dff")
+    with metric_placeholders[4]:
+        render_hud_card(st, "ACOUSTIC", tot_head, "🎧", f"{pct(tot_head)} Headphones", "hud-metric-green", "#00ff87")
+    with metric_placeholders[5]:
+        render_hud_card(st, "PLAIN", tot_none, "👤", f"{pct(tot_none)} No Gear", "hud-metric-slate", "#94a3b8")
+
+# Initial render
+update_top_metrics()
+
+st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
+
+# ── MAIN 2-COLUMN WORKSPACE ─────────────────────────────────────────────────
 left_col, right_col = st.columns([7, 5], gap="large")
 
 with left_col:
-    st.subheader("📹 Video / Media Panel")
+    st.markdown("""
+    <div style="font-family: 'Orbitron', sans-serif; font-size: 15px; font-weight: 700; color: #00f2fe; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+        <span>📹 SURVEILLANCE FEED // TACTICAL VIEWPORT</span>
+    </div>
+    """, unsafe_allow_html=True)
 
-    uploaded_file = st.file_uploader(
-        "Upload Video for Analytics (MP4, AVI, MOV)",
-        type=["mp4", "avi", "mov", "jpg", "jpeg", "png"],
-        help="Select a classroom video or photo to track and analyze."
-    )
+    # Video / Media Box
+    video_box = st.empty()
+    progress_box = st.empty()
+    status_box = st.empty()
 
-    use_sample = False
-    if not uploaded_file:
-        if st.button("🎬 Load Sample Video (input.mp4)"):
-            use_sample = True
+    # Upload & Control Bay
+    st.markdown("<div class='cyber-card' style='margin-top: 14px;'>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family: Orbitron; font-size: 13px; font-weight: 700; color: #94a3b8; margin-bottom: 10px;'>⚡ MISSION CONTROL // INPUT SELECTOR</div>", unsafe_allow_html=True)
 
-    # Controls
-    col_ctrl1, col_ctrl2 = st.columns(2)
-    with col_ctrl1:
-        conf_thresh = st.slider("Detection Confidence", min_value=0.10, max_value=0.90, value=0.30, step=0.05)
-    with col_ctrl2:
-        model_path = st.text_input("Accessory Model Path", value="accessory_best.pt")
+    c_up, c_samp = st.columns([3, 2])
+    with c_up:
+        uploaded_file = st.file_uploader("Upload Tactical Video / Imagery", type=["mp4", "avi", "mov", "jpg", "jpeg", "png"])
+    with c_samp:
+        st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+        use_sample = st.button("🎯 LOAD SAMPLE (input.mp4)")
 
-    process_btn = st.button("⚡ Run Video Analytics Pipeline", type="primary")
+    c_cfg1, c_cfg2 = st.columns(2)
+    with c_cfg1:
+        conf_thresh = st.slider("AI Confidence Gate (NMS Threshold)", 0.10, 0.90, 0.30, 0.05)
+    with c_cfg2:
+        model_path = st.text_input("Neural Weights Identifier", value="accessory_best.pt")
 
-    # Video display placeholder
-    video_placeholder = st.empty()
-    progress_placeholder = st.empty()
-    status_placeholder = st.empty()
+    process_btn = st.button("🚀 ENGAGE VISION ANALYTICS ENGINE")
+    st.markdown("</div>", unsafe_allow_html=True)
 
     if not uploaded_file and not use_sample:
         if os.path.exists("output_annotated.mp4"):
-            st.info("Displaying latest processed video:")
-            st.video("output_annotated.mp4")
+            video_box.video("output_annotated.mp4")
         elif os.path.exists("input.mp4"):
-            st.info("Sample video available (input.mp4). Click 'Run Video Analytics Pipeline' to process.")
+            video_box.info("Sample video standby (input.mp4). Press 'ENGAGE' to execute neural tracking.")
 
 with right_col:
-    st.subheader("📊 Live Stats & Accessory Breakdown")
+    st.markdown("""
+    <div style="font-family: 'Orbitron', sans-serif; font-size: 15px; font-weight: 700; color: #c77dff; margin-bottom: 8px; display: flex; align-items: center; gap: 8px;">
+        <span>📊 RADAR TELEMETRY & TARGET MATRIX</span>
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Metric placeholders
-    m1, m2, m3 = st.columns(3)
-    m4, m5, m6 = st.columns(3)
+    # Plotly Futuristic Radar & Donut Chart
+    chart_placeholder = st.empty()
 
-    metric_total = m1.empty()
-    metric_cap = m2.empty()
-    metric_mask = m3.empty()
-    metric_glasses = m4.empty()
-    metric_headphones = m5.empty()
-    metric_none = m6.empty()
+    def render_cyber_chart(tot_cap=0, tot_mask=0, tot_glass=0, tot_head=0, tot_none=0):
+        categories = ['Caps 🧢', 'Masks 😷', 'Glasses 👓', 'Headphones 🎧', 'Plain 👤']
+        values = [tot_cap, tot_mask, tot_glass, tot_head, tot_none]
+        
+        # Donut Chart with Neon Palette
+        fig = go.Figure(data=[go.Pie(
+            labels=categories,
+            values=values,
+            hole=.65,
+            marker=dict(colors=['#ffb703', '#fb8500', '#c77dff', '#00ff87', '#64748b'],
+                        line=dict(color='#060913', width=3)),
+            textinfo='label+percent',
+            hoverinfo='label+value',
+            textfont=dict(family='Orbitron', size=11, color='#ffffff')
+        )])
 
-    # Initial metric display
-    metric_total.metric("Total Persons", 0)
-    metric_cap.metric("🧢 Caps", 0)
-    metric_mask.metric("😷 Masks", 0)
-    metric_glasses.metric("👓 Glasses", 0)
-    metric_headphones.metric("🎧 Headphones", 0)
-    metric_none.metric("👤 Plain", 0)
+        fig.update_layout(
+            paper_bgcolor='rgba(13, 20, 36, 0.7)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(t=20, b=20, l=20, r=20),
+            height=220,
+            showlegend=False,
+            annotations=[dict(
+                text='GEAR<br>SPECTRUM',
+                x=0.5, y=0.5,
+                font=dict(family='Orbitron', size=11, color='#00f2fe'),
+                showarrow=False
+            )]
+        )
+        chart_placeholder.plotly_chart(fig, use_container_width=True)
 
-    st.markdown("---")
-    st.subheader("📋 Student Details Table")
+    render_cyber_chart()
+
+    # Target Matrix Table
+    st.markdown("<div style='font-family: Orbitron; font-size: 13px; font-weight: 700; color: #00ff87; margin: 12px 0 6px 0;'>🎯 ACTIVE TARGET REGISTER</div>", unsafe_allow_html=True)
     table_placeholder = st.empty()
 
-    st.markdown("---")
-    st.subheader("📥 Download Reports")
+    # Export Bay
+    st.markdown("<div style='font-family: Orbitron; font-size: 13px; font-weight: 700; color: #ffb703; margin: 14px 0 6px 0;'>💾 INTELLIGENCE DOSSIER EXPORT</div>", unsafe_allow_html=True)
     down_col1, down_col2 = st.columns(2)
     csv_down_placeholder = down_col1.empty()
     json_down_placeholder = down_col2.empty()
 
 
-# Processing Routine
+# ── EXECUTION ENGINE ────────────────────────────────────────────────────────
 if process_btn or use_sample:
-    # 1. Determine input file path
+    # 1. Resolve source
     temp_input_path = None
     if uploaded_file is not None:
         tfile = tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix)
@@ -142,16 +333,15 @@ if process_btn or use_sample:
     elif os.path.exists("input.mp4"):
         temp_input_path = "input.mp4"
     else:
-        st.error("Please upload a video file or provide input.mp4 in the workspace directory.")
+        status_box.error("Input stream unavailable. Upload a media file or provide input.mp4.")
         st.stop()
 
-    status_placeholder.info("Initializing YOLOv8 + BotSORT & AccessoryDetector models...")
+    status_box.markdown("<div class='telemetry-pill' style='color: #ffb703; border-color: #ffb703;'>INITIALIZING NEURAL ARRAYS (YOLOv8 + Accessory Core)...</div>", unsafe_allow_html=True)
 
-    # 2. Initialize Pipeline Modules
     try:
         source = VideoSource(temp_input_path)
     except Exception as e:
-        st.error(f"Error loading video source: {e}")
+        status_box.error(f"Stream failure: {e}")
         st.stop()
 
     tracker = PersonTracker(
@@ -165,7 +355,7 @@ if process_btn or use_sample:
     acc_detector = AccessoryDetector(model_path=model_path, confidence=conf_thresh)
     state_mgr = StateManager()
     acc_counter = AccessoryCounter()
-    visualizer = Visualizer()
+    visualizer = Visualizer(vis_cfg={"box_thickness": 2, "text_scale": 0.65, "show_confidence": True})
     exporter = Exporter(
         csv_path="tracks.csv",
         summary_path="summary.json",
@@ -174,36 +364,29 @@ if process_btn or use_sample:
     )
 
     out_temp = "output_annotated.mp4"
-    writer = cv2.VideoWriter(
-        out_temp,
-        cv2.VideoWriter_fourcc(*"mp4v"),
-        source.fps,
-        (source.width, source.height)
-    )
+    writer = cv2.VideoWriter(out_temp, cv2.VideoWriter_fourcc(*"mp4v"), source.fps, (source.width, source.height))
 
     total_frames = max(source.total_frames, 1)
     frame_idx = 0
     t0 = time.time()
-
-    status_placeholder.info("Processing video frames...")
-    prog_bar = progress_placeholder.progress(0)
+    prog_bar = progress_box.progress(0)
 
     try:
         with source:
             for frame in source:
-                # Step 1: Detect & Track Persons
+                # 1. Person Tracking
                 tracks = tracker.track(frame)
 
-                # Step 2: Accessory Detection
+                # 2. Accessory Inference
                 person_boxes = [t["xyxy"] for t in tracks] if tracks else []
                 raw_accs = acc_detector.detect(frame, person_boxes=person_boxes) if tracks else []
 
-                # Step 3: Spatial Association (upper 40% head/shoulder region)
+                # 3. Upper 40% Head-Region Association
                 acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.40)
                 for t in tracks:
                     t["accessories"] = acc_map.get(t["track_id"], [])
 
-                # Step 4: State Manager & Temporal Voting
+                # 4. State & Temporal Voting
                 state_mgr.update(frame_idx, tracks)
                 for t in tracks:
                     tid = t["track_id"]
@@ -211,7 +394,7 @@ if process_btn or use_sample:
                         state_mgr.update_state(tid, t.get("accessories", []), frame_idx)
                         state_mgr.apply_temporal_voting(tid, window=30, threshold=0.60)
 
-                # Step 5: Live Metrics Calculation
+                # 5. Live Metrics Computation
                 all_st = list(state_mgr.all_states().values())
                 tot_p = state_mgr.total_unique
                 tot_cap = sum(1 for s in all_st if s.final_cap)
@@ -220,33 +403,18 @@ if process_btn or use_sample:
                 tot_head = sum(1 for s in all_st if s.final_headphones)
                 tot_none = sum(1 for s in all_st if not (s.final_cap or s.final_mask or s.final_glasses or s.final_headphones))
 
-                # Step 6: Update Live Stats Panel
-                metric_total.metric("Total Persons", tot_p)
-                metric_cap.metric("🧢 Caps", tot_cap)
-                metric_mask.metric("😷 Masks", tot_mask)
-                metric_glasses.metric("👓 Glasses", tot_glass)
-                metric_headphones.metric("🎧 Headphones", tot_head)
-                metric_none.metric("👤 Plain", tot_none)
-
-                # Step 7: Annotate and Write Video
-                live_totals = {
-                    "persons": tot_p,
-                    "caps": tot_cap,
-                    "masks": tot_mask,
-                    "glasses": tot_glass,
-                    "headphones": tot_head,
-                }
+                # Update HUD and Charts
+                live_totals = {"persons": tot_p, "caps": tot_cap, "masks": tot_mask, "glasses": tot_glass, "headphones": tot_head}
                 annotated = visualizer.draw(frame, tracks, live_totals=live_totals)
                 writer.write(annotated)
 
-                # Update progress
                 frame_idx += 1
-                if frame_idx % 10 == 0:
-                    prog = min(frame_idx / total_frames, 1.0)
-                    prog_bar.progress(prog)
-                    # Live video frame display (every 10 frames)
-                    rgb_frame = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                    video_placeholder.image(rgb_frame, channels="RGB", use_container_width=True)
+                if frame_idx % 12 == 0:
+                    prog_bar.progress(min(frame_idx / total_frames, 1.0))
+                    update_top_metrics(tot_p, tot_cap, tot_mask, tot_glass, tot_head, tot_none)
+                    render_cyber_chart(tot_cap, tot_mask, tot_glass, tot_head, tot_none)
+                    rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                    video_box.image(rgb, channels="RGB", use_container_width=True)
 
     finally:
         writer.release()
@@ -254,16 +422,17 @@ if process_btn or use_sample:
 
     prog_bar.progress(1.0)
     elapsed = time.time() - t0
-    status_placeholder.success(f"✅ Completed! {frame_idx} frames processed in {elapsed:.1f}s ({frame_idx/elapsed:.1f} FPS)")
+    status_box.markdown(f"""
+    <div class="telemetry-pill" style="color: #00ff87; border-color: #00ff87; font-size: 12px;">
+        ⚡ MISSION COMPLETE: {frame_idx} FRAMES // {elapsed:.1f}s ELAPSED // {frame_idx/elapsed:.1f} FPS // {state_mgr.total_unique} TARGETS IDENTIFIED
+    </div>
+    """, unsafe_allow_html=True)
 
-    # Step 8: Compute Final Aggregate Reports
+    # Compute Final Reports
     acc_counter.compute(state_mgr)
-    exporter.save_final_report(
-        state_manager=state_mgr,
-        acc_counter=acc_counter,
-    )
+    exporter.save_final_report(state_manager=state_mgr, acc_counter=acc_counter)
 
-    # Step 9: Render Student Details Table
+    # Render Final Target Table
     table_rows = []
     for tid, s in sorted(state_mgr.all_states().items()):
         accs = []
@@ -273,41 +442,39 @@ if process_btn or use_sample:
         if s.final_headphones: accs.append("🎧 Headphones")
 
         table_rows.append({
-            "Student ID": f"#{tid}",
-            "First Seen": f"Frame {s.first_frame}",
-            "Last Seen": f"Frame {s.last_frame}",
-            "Frames Observed": s.frame_count,
-            "Confirmed Accessories": ", ".join(accs) if accs else "None",
-            "Status": "✅ Verified" if accs else "👤 Regular"
+            "Target ID": f"TRK-{tid:03d}",
+            "Inception": f"F:{s.first_frame:03d}",
+            "Latest": f"F:{s.last_frame:03d}",
+            "Frames": s.frame_count,
+            "Gear Verified": ", ".join(accs) if accs else "None",
+            "Classification": "SECURED // ACTIVE" if accs else "STANDARD TARGET"
         })
 
     if table_rows:
         df = pd.DataFrame(table_rows)
         table_placeholder.dataframe(df, use_container_width=True)
-    else:
-        table_placeholder.info("No tracks observed.")
 
-    # Step 10: Enable CSV & JSON Download Buttons
+    # Final Video View
+    if os.path.exists(out_temp):
+        video_box.video(out_temp)
+
+    # Download Buttons
     if os.path.exists("final_report.csv"):
         with open("final_report.csv", "r") as f:
             csv_down_placeholder.download_button(
-                label="📥 Download final_report.csv",
+                "📥 EXPORT CSV DOSSIER",
                 data=f.read(),
                 file_name="final_report.csv",
                 mime="text/csv",
-                use_container_width=True,
+                use_container_width=True
             )
 
     if os.path.exists("final_report.json"):
         with open("final_report.json", "r") as f:
             json_down_placeholder.download_button(
-                label="📥 Download final_report.json",
+                "📥 EXPORT JSON TELEMETRY",
                 data=f.read(),
                 file_name="final_report.json",
                 mime="application/json",
-                use_container_width=True,
+                use_container_width=True
             )
-
-    # Display final annotated video
-    if os.path.exists(out_temp):
-        video_placeholder.video(out_temp)
