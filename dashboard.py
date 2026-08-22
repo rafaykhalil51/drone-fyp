@@ -35,7 +35,7 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-# ── CACHED MODEL LOADING (avoids re-init on every widget click) ──────────────
+# ── CACHED MODEL LOADING ─────────────────────────────────────────────────────
 @st.cache_resource
 def load_person_detector(conf):
     return PersonDetector("yolov8n.pt", confidence=conf, iou_threshold=0.50)
@@ -63,24 +63,18 @@ st.markdown("""
         letter-spacing: 1.5px;
     }
     .cyber-card {
-        background: rgba(13, 20, 36, 0.75);
+        background: rgba(13, 20, 36, 0.85);
         backdrop-filter: blur(16px);
-        border: 1px solid rgba(0, 242, 254, 0.2);
+        border: 1px solid rgba(0, 242, 254, 0.25);
         border-radius: 14px;
         padding: 18px;
-        box-shadow: 0 0 25px rgba(0, 242, 254, 0.05), inset 0 0 15px rgba(0, 242, 254, 0.02);
-        position: relative; overflow: hidden;
-    }
-    .cyber-card::before {
-        content: ''; position: absolute;
-        top: 0; left: 0; width: 100%; height: 2px;
-        background: linear-gradient(90deg, transparent, #00f2fe, #9d4edd, transparent);
+        box-shadow: 0 0 25px rgba(0, 242, 254, 0.06), inset 0 0 15px rgba(0, 242, 254, 0.02);
+        margin-top: 10px;
     }
     .hud-metric {
-        background: rgba(15, 23, 42, 0.85);
+        background: rgba(15, 23, 42, 0.9);
         border: 1px solid rgba(255, 255, 255, 0.08);
         border-radius: 12px; padding: 14px;
-        position: relative; overflow: hidden;
         transition: transform 0.2s ease, border-color 0.2s ease;
     }
     .hud-metric:hover { transform: translateY(-2px); border-color: rgba(0, 242, 254, 0.4); }
@@ -98,18 +92,18 @@ st.markdown("""
         background: linear-gradient(135deg, #00f2fe 0%, #4facfe 50%, #6b21a8 100%) !important;
         color: #ffffff !important;
         font-family: 'Orbitron', sans-serif !important;
-        font-weight: 700 !important; letter-spacing: 1.5px !important;
+        font-weight: 700 !important; letter-spacing: 1.2px !important;
         border: none !important; border-radius: 10px !important;
         box-shadow: 0 0 20px rgba(0, 242, 254, 0.3) !important;
-        transition: all 0.3s ease !important; padding: 10px 20px !important;
+        transition: all 0.3s ease !important; padding: 10px 18px !important;
     }
     .stButton>button:hover { box-shadow: 0 0 35px rgba(0, 242, 254, 0.6) !important; transform: scale(1.01) !important; }
 
     .telemetry-pill {
         display: inline-flex; align-items: center; gap: 6px;
-        padding: 4px 12px;
+        padding: 6px 14px;
         background: rgba(0, 242, 254, 0.08);
-        border: 1px solid rgba(0, 242, 254, 0.25);
+        border: 1px solid rgba(0, 242, 254, 0.3);
         border-radius: 999px; font-size: 11px;
         font-family: 'Orbitron', monospace; color: #00f2fe;
     }
@@ -122,6 +116,25 @@ st.markdown("""
         0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 135, 0.7); }
         70%  { transform: scale(1);    box-shadow: 0 0 0 8px rgba(0, 255, 135, 0);  }
         100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 135, 0);  }
+    }
+    /* Tab Styling */
+    .stTabs [data-baseweb="tab-list"] {
+        gap: 12px;
+    }
+    .stTabs [data-baseweb="tab"] {
+        font-family: 'Orbitron', sans-serif !important;
+        font-size: 13px !important;
+        font-weight: 700 !important;
+        border-radius: 8px !important;
+        padding: 10px 18px !important;
+        background: rgba(15, 23, 42, 0.6) !important;
+        border: 1px solid rgba(0, 242, 254, 0.2) !important;
+        color: #94a3b8 !important;
+    }
+    .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, rgba(0, 242, 254, 0.2), rgba(157, 78, 221, 0.2)) !important;
+        border-color: #00f2fe !important;
+        color: #00f2fe !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -175,19 +188,28 @@ def update_top_metrics(tp=0, tc=0, tm=0, tg=0, th=0, tn=0):
 
 st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
 
-# ── 2-COLUMN LAYOUT ─────────────────────────────────────────────────────────
+# ── 2-COLUMN WORKSPACE ──────────────────────────────────────────────────────
 left_col, right_col = st.columns([7, 5], gap="large")
 
 with left_col:
     st.markdown("""<div style="font-family: 'Orbitron', sans-serif; font-size: 15px; font-weight: 700; color: #00f2fe; margin-bottom: 8px;">📹 SURVEILLANCE FEED // TACTICAL VIEWPORT</div>""", unsafe_allow_html=True)
-    video_box    = st.empty()
+    viewport_box = st.empty()
     progress_box = st.empty()
     status_box   = st.empty()
 
-    st.markdown("<div class='cyber-card' style='margin-top: 14px;'>", unsafe_allow_html=True)
-    st.markdown("<div style='font-family: Orbitron; font-size: 13px; font-weight: 700; color: #94a3b8; margin-bottom: 10px;'>⚡ MISSION CONTROL // INPUT SELECTOR</div>", unsafe_allow_html=True)
+    # Dedicated 2 Tabs: Upload Photo vs Upload Video
+    st.markdown("<div class='cyber-card'>", unsafe_allow_html=True)
+    st.markdown("<div style='font-family: Orbitron; font-size: 14px; font-weight: 700; color: #00f2fe; margin-bottom: 10px;'>⚡ INPUT CONTROL BAY</div>", unsafe_allow_html=True)
 
-    uploaded_file = st.file_uploader("Upload Photo / Video", type=["mp4", "avi", "mov", "jpg", "jpeg", "png", "webp"], key="file_upload")
+    tab_photo, tab_video = st.tabs(["📷 1. UPLOAD PHOTO", "🎥 2. UPLOAD VIDEO"])
+
+    with tab_photo:
+        uploaded_photo = st.file_uploader("Upload Image File (JPG, PNG, WEBP)", type=["jpg", "jpeg", "png", "webp"], key="photo_uploader")
+        btn_sample_photo = st.button("🎯 LOAD SAMPLE PHOTO", key="btn_sample_photo")
+
+    with tab_video:
+        uploaded_video = st.file_uploader("Upload Video File (MP4, AVI, MOV)", type=["mp4", "avi", "mov", "mkv"], key="video_uploader")
+        btn_sample_video = st.button("🎯 LOAD SAMPLE VIDEO (input.mp4)", key="btn_sample_video")
 
     c1, c2 = st.columns(2)
     with c1:
@@ -195,33 +217,32 @@ with left_col:
     with c2:
         model_path = st.text_input("Neural Weights", value="accessory_best.pt", key="model_input")
 
-    use_sample = st.button("🎯 LOAD SAMPLE PHOTO", key="sample_btn")
     st.markdown("</div>", unsafe_allow_html=True)
 
 with right_col:
     st.markdown("""<div style="font-family: 'Orbitron', sans-serif; font-size: 15px; font-weight: 700; color: #c77dff; margin-bottom: 8px;">📊 RADAR TELEMETRY &amp; TARGET MATRIX</div>""", unsafe_allow_html=True)
-    chart_ph = st.empty()
+    chart_container = st.empty()
     st.markdown("<div style='font-family: Orbitron; font-size: 13px; font-weight: 700; color: #00ff87; margin: 12px 0 6px 0;'>🎯 ACTIVE TARGET REGISTER</div>", unsafe_allow_html=True)
-    table_ph = st.empty()
+    table_container = st.empty()
     st.markdown("<div style='font-family: Orbitron; font-size: 13px; font-weight: 700; color: #ffb703; margin: 14px 0 6px 0;'>💾 INTELLIGENCE DOSSIER EXPORT</div>", unsafe_allow_html=True)
     dc1, dc2 = st.columns(2)
     csv_ph  = dc1.empty()
     json_ph = dc2.empty()
+    video_dl_ph = st.empty()
 
-# ── HELPER: RENDER DONUT CHART ───────────────────────────────────────────────
-_chart_n = 0
+# ── HELPER: RENDER PIE / DONUT CHART ─────────────────────────────────────────
+_chart_count = 0
 def render_chart(tc=0, tm=0, tg=0, th=0, tn=0):
-    global _chart_n
-    _chart_n += 1
+    global _chart_count
+    _chart_count += 1
     total = tc + tm + tg + th + tn
     if total == 0:
-        labels = ['Awaiting Detection...']
+        labels = ['Awaiting Detection']
         values = [1]
         colors = ['rgba(100, 116, 139, 0.4)']
         textinfo = 'label'
         center_text = 'STANDBY<br>READY'
     else:
-        # Filter out 0 categories for clean slices
         raw_cats = [
             ('Caps 🧢', tc, '#ffb703'),
             ('Masks 😷', tm, '#fb8500'),
@@ -264,35 +285,36 @@ def render_chart(tc=0, tm=0, tg=0, th=0, tn=0):
         annotations=[dict(text=center_text, x=0.5, y=0.5,
                           font=dict(family='Orbitron', size=11, color='#00f2fe'), showarrow=False)]
     )
-    chart_ph.plotly_chart(fig, key=f"gear_chart_{_chart_n}")
+    chart_container.plotly_chart(fig, key=f"gear_chart_{_chart_count}")
 
-# ── RESOLVE INPUT ────────────────────────────────────────────────────────────
-temp_input_path = None
+# ── RESOLVE INPUT FILE & MODE ────────────────────────────────────────────────
+input_mode = "photo" # default
+target_media_path = None
 
-if uploaded_file is not None:
-    tfile = tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_file.name).suffix)
-    tfile.write(uploaded_file.read())
+if uploaded_video is not None:
+    input_mode = "video"
+    tfile = tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_video.name).suffix)
+    tfile.write(uploaded_video.read())
     tfile.flush()
-    temp_input_path = tfile.name
-elif use_sample or (uploaded_file is None):
-    # Default: load sample photo if it exists
+    target_media_path = tfile.name
+elif btn_sample_video and os.path.exists("input.mp4"):
+    input_mode = "video"
+    target_media_path = "input.mp4"
+elif uploaded_photo is not None:
+    input_mode = "photo"
+    tfile = tempfile.NamedTemporaryFile(delete=False, suffix=Path(uploaded_photo.name).suffix)
+    tfile.write(uploaded_photo.read())
+    tfile.flush()
+    target_media_path = tfile.name
+elif btn_sample_photo or True:
+    input_mode = "photo"
     if os.path.exists("uploads/classroom_sample.jpg"):
-        temp_input_path = "uploads/classroom_sample.jpg"
+        target_media_path = "uploads/classroom_sample.jpg"
     elif os.path.exists("input.mp4"):
-        temp_input_path = "input.mp4"
+        input_mode = "video"
+        target_media_path = "input.mp4"
 
-if temp_input_path is None:
-    update_top_metrics()
-    render_chart()
-    status_box.info("Upload a photo or video to begin analysis.")
-    st.stop()
-
-file_ext = Path(temp_input_path).suffix.lower()
-is_image = file_ext in [".jpg", ".jpeg", ".png", ".webp", ".bmp"]
-
-# ── RUN DETECTION ────────────────────────────────────────────────────────────
-status_box.markdown('<div class="telemetry-pill" style="color: #ffb703; border-color: #ffb703;">⏳ INITIALIZING NEURAL ARRAYS...</div>', unsafe_allow_html=True)
-
+# ── INITIALIZE DETECTION & STATE ENGINES ─────────────────────────────────────
 acc_detector = load_accessory_detector(model_path, conf_thresh)
 state_mgr    = StateManager()
 acc_counter  = AccessoryCounter()
@@ -302,9 +324,9 @@ exporter     = Exporter(csv_path="tracks.csv", summary_path="summary.json",
 
 t0 = time.time()
 
-if is_image:
-    # ── PHOTO MODE ───────────────────────────────────────────────────────────
-    frame = cv2.imread(temp_input_path)
+if input_mode == "photo" and target_media_path is not None:
+    # ── 1. PHOTO EXECUTION ───────────────────────────────────────────────────
+    frame = cv2.imread(target_media_path)
     if frame is None:
         status_box.error("Could not decode image file.")
         st.stop()
@@ -339,26 +361,22 @@ if is_image:
     live_totals = {"persons": tot_p, "caps": tot_cap, "masks": tot_mask, "glasses": tot_gls, "headphones": tot_hd}
     annotated = visualizer.draw(frame, tracks, live_totals=live_totals)
     rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-    video_box.image(rgb, channels="RGB", width="stretch")
+    viewport_box.image(rgb, channels="RGB", width="stretch")
 
     elapsed = time.time() - t0
     status_box.markdown(f"""
     <div class="telemetry-pill" style="color: #00ff87; border-color: #00ff87; font-size: 12px;">
-        ⚡ IMAGE SCAN COMPLETE: {elapsed:.2f}s // {tot_p} STUDENTS // ACCESSORIES MAPPED
+        ⚡ IMAGE SCAN COMPLETE: {elapsed:.2f}s // {tot_p} STUDENTS DETECTED // ACCESSORIES MAPPED
     </div>
     """, unsafe_allow_html=True)
 
-else:
-    # ── VIDEO MODE (fast process → normal-speed playback) ────────────────────
+elif input_mode == "video" and target_media_path is not None:
+    # ── 2. VIDEO EXECUTION (WITH LOADING ANIMATION & PLAYER CONTROLS) ────────
     try:
-        source = VideoSource(temp_input_path)
+        source = VideoSource(target_media_path)
     except Exception as e:
         status_box.error(f"Stream failure: {e}")
         st.stop()
-
-    tracker = PersonTracker(model_path="yolov8n.pt", confidence=conf_thresh,
-                            iou_threshold=0.50, tracker_config="botsort.yaml",
-                            persist=True, person_class_id=0)
 
     target_fps = float(source.fps) if (source.fps and 1.0 <= source.fps <= 120.0) else 30.0
     out_raw  = "output_raw.mp4"
@@ -370,67 +388,66 @@ else:
     frame_idx = 0
     prog_bar = progress_box.progress(0)
 
-    status_box.markdown("""
-    <div class="telemetry-pill" style="color: #ffb703; border-color: #ffb703; font-size: 12px;">
-        ⚡ PROCESSING ALL FRAMES AT MAX SPEED...
-    </div>
-    """, unsafe_allow_html=True)
+    tracker = PersonTracker(model_path="yolov8n.pt", confidence=conf_thresh,
+                            iou_threshold=0.50, tracker_config="botsort.yaml",
+                            persist=True, person_class_id=0)
 
-    try:
-        with source:
-            for frame in source:
-                tracks = tracker.track(frame)
-                person_boxes = [t["xyxy"] for t in tracks] if tracks else []
-                raw_accs = acc_detector.detect(frame, person_boxes=person_boxes) if tracks else []
+    # Show Loading Animation Spinner while processing frames
+    with st.spinner("⚡ NEURAL INFERENCE IN PROGRESS // ANALYZING VIDEO FRAMES..."):
+        try:
+            with source:
+                for frame in source:
+                    tracks = tracker.track(frame)
+                    person_boxes = [t["xyxy"] for t in tracks] if tracks else []
+                    raw_accs = acc_detector.detect(frame, person_boxes=person_boxes) if tracks else []
 
-                acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.48)
-                for t in tracks:
-                    t["accessories"] = acc_map.get(t["track_id"], [])
+                    acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.48)
+                    for t in tracks:
+                        t["accessories"] = acc_map.get(t["track_id"], [])
 
-                state_mgr.update(frame_idx, tracks)
-                for t in tracks:
-                    tid = t["track_id"]
-                    if tid >= 0:
-                        state_mgr.update_state(tid, t.get("accessories", []), frame_idx)
-                        state_mgr.apply_temporal_voting(tid, window=30, threshold=0.35, latch=True)
+                    state_mgr.update(frame_idx, tracks)
+                    for t in tracks:
+                        tid = t["track_id"]
+                        if tid >= 0:
+                            state_mgr.update_state(tid, t.get("accessories", []), frame_idx)
+                            state_mgr.apply_temporal_voting(tid, window=30, threshold=0.35, latch=True)
 
-                all_st   = list(state_mgr.all_states().values())
-                tot_p    = state_mgr.total_unique
-                tot_cap  = sum(1 for s in all_st if s.final_cap)
-                tot_mask = sum(1 for s in all_st if s.final_mask)
-                tot_gls  = sum(1 for s in all_st if s.final_glasses)
-                tot_hd   = sum(1 for s in all_st if s.final_headphones)
-                tot_none = sum(1 for s in all_st if not (s.final_cap or s.final_mask or s.final_glasses or s.final_headphones))
+                    all_st   = list(state_mgr.all_states().values())
+                    tot_p    = state_mgr.total_unique
+                    tot_cap  = sum(1 for s in all_st if s.final_cap)
+                    tot_mask = sum(1 for s in all_st if s.final_mask)
+                    tot_gls  = sum(1 for s in all_st if s.final_glasses)
+                    tot_hd   = sum(1 for s in all_st if s.final_headphones)
+                    tot_none = sum(1 for s in all_st if not (s.final_cap or s.final_mask or s.final_glasses or s.final_headphones))
 
-                live_totals = {"persons": tot_p, "caps": tot_cap, "masks": tot_mask, "glasses": tot_gls, "headphones": tot_hd}
-                annotated = visualizer.draw(frame, tracks, live_totals=live_totals)
-                writer.write(annotated)
+                    live_totals = {"persons": tot_p, "caps": tot_cap, "masks": tot_mask, "glasses": tot_gls, "headphones": tot_hd}
+                    annotated = visualizer.draw(frame, tracks, live_totals=live_totals)
+                    writer.write(annotated)
 
-                frame_idx += 1
-                # Update live scanning progress
-                if frame_idx % 8 == 0 or frame_idx == total_frames:
-                    pct = min(frame_idx / total_frames, 1.0)
-                    prog_bar.progress(pct)
-                    fps_now = frame_idx / max(time.time() - t0, 0.01)
-                    status_box.markdown(f"""
-                    <div class="telemetry-pill" style="color: #ffb703; border-color: #ffb703; font-size: 12px;">
-                        ⚡ SCANNING: {frame_idx}/{total_frames} frames ({pct*100:.0f}%) // AI Inference: {fps_now:.1f} FPS
-                    </div>
-                    """, unsafe_allow_html=True)
-                    rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                    video_box.image(rgb, channels="RGB", width="stretch")
-    finally:
-        writer.release()
-        exporter.save(state_mgr)
+                    frame_idx += 1
+                    if frame_idx % 8 == 0 or frame_idx == total_frames:
+                        pct = min(frame_idx / total_frames, 1.0)
+                        prog_bar.progress(pct)
+                        fps_now = frame_idx / max(time.time() - t0, 0.01)
+                        status_box.markdown(f"""
+                        <div class="telemetry-pill" style="color: #ffb703; border-color: #ffb703; font-size: 12px;">
+                            ⚡ PROCESSING: {frame_idx}/{total_frames} frames ({pct*100:.0f}%) // AI Inference: {fps_now:.1f} FPS
+                        </div>
+                        """, unsafe_allow_html=True)
+                        rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                        viewport_box.image(rgb, channels="RGB", width="stretch")
+        finally:
+            writer.release()
+            exporter.save(state_mgr)
 
-    # Update final metrics & chart
+    # Update final HUD metrics & Donut Chart
     update_top_metrics(tot_p, tot_cap, tot_mask, tot_gls, tot_hd, tot_none)
     render_chart(tot_cap, tot_mask, tot_gls, tot_hd, tot_none)
 
     prog_bar.progress(1.0)
     elapsed = time.time() - t0
 
-    # Convert to H.264 enforcing exact native framerate
+    # Convert to browser-compatible normal-speed H.264 MP4
     import subprocess
     try:
         import imageio_ffmpeg
@@ -459,14 +476,17 @@ else:
 
     status_box.markdown(f"""
     <div class="telemetry-pill" style="color: #00ff87; border-color: #00ff87; font-size: 12px;">
-        ⚡ MISSION COMPLETE: {frame_idx} FRAMES // Video Playback: {target_fps:.1f} FPS (1.0x Real-Time Speed) // {state_mgr.total_unique} TARGETS
+        ⚡ PROCESSING COMPLETE // Video Ready at {target_fps:.1f} FPS (1.0x Normal Speed) // {state_mgr.total_unique} Unique Targets
     </div>
     """, unsafe_allow_html=True)
 
+    # Cleanly mount the interactive HTML5 Video Player with Pause/Play/Seek/Volume/Speed controls
     if os.path.exists(play_path):
         with open(play_path, "rb") as vf:
             video_bytes = vf.read()
-        video_box.video(video_bytes, format="video/mp4", autoplay=True)
+        viewport_box.empty()
+        time.sleep(0.05)
+        viewport_box.video(video_bytes, format="video/mp4", autoplay=True)
 
 # ── REPORTS & TABLE ──────────────────────────────────────────────────────────
 acc_counter.compute(state_mgr)
@@ -489,7 +509,7 @@ for tid, s in sorted(state_mgr.all_states().items()):
     })
 
 if table_rows:
-    table_ph.dataframe(pd.DataFrame(table_rows), width="stretch")
+    table_container.dataframe(pd.DataFrame(table_rows), width="stretch")
 
 if os.path.exists("final_report.csv"):
     with open("final_report.csv", "r") as f:
@@ -501,9 +521,9 @@ if os.path.exists("final_report.json"):
         json_ph.download_button("📥 EXPORT JSON TELEMETRY", data=f.read(),
                                 file_name="final_report.json", mime="application/json", key="dl_json")
 
-if not is_image and os.path.exists(play_path):
-    with open(play_path, "rb") as vf:
-        st.download_button(
+if input_mode == "video" and os.path.exists("output_annotated.mp4"):
+    with open("output_annotated.mp4", "rb") as vf:
+        video_dl_ph.download_button(
             "📹 DOWNLOAD ANNOTATED VIDEO (1.0x NORMAL SPEED)",
             data=vf.read(),
             file_name="annotated_video_1x.mp4",
