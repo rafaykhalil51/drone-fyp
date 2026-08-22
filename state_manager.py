@@ -178,25 +178,15 @@ class StateManager:
         self,
         track_id: int,
         window: int   = 30,
-        threshold: float = 0.6,
+        threshold: float = 0.35,
+        latch: bool = True,
     ) -> dict[str, bool]:
         """
-        Evaluate the sliding-window majority vote for each accessory class
+        Evaluate sliding-window and cumulative evidence for each accessory class
         and update the corresponding final_* flag on the track's state.
 
-        An accessory is considered *confirmed* (final_* = True) when it
-        appeared in at least *threshold* fraction of the last *window*
-        observations for that track.
-
-        Parameters
-        ----------
-        track_id  : track to evaluate
-        window    : number of most-recent frame observations to consider
-        threshold : minimum fraction (0-1) to set final_* = True
-
-        Returns
-        -------
-        dict mapping accessory name -> bool  (the updated final flags)
+        With latch=True, once an accessory is confirmed on a track, it remains
+        confirmed even during momentary occlusions or head turns.
         """
         state = self._states.get(track_id)
         if state is None:
@@ -207,21 +197,20 @@ class StateManager:
 
         for key in ACCESSORY_KEYS:
             votes = state.vote_lists()[key]
-            # Take only the most recent *window* observations
-            recent = votes[-window:] if len(votes) >= window else votes
+            current_flag = getattr(state, f"final_{key}", False)
 
-            if not recent:
-                decision = False
+            if latch and current_flag:
+                # Already confirmed for this track
+                decision = True
             else:
-                positive_rate = sum(recent) / len(recent)
-                decision = positive_rate >= threshold
-                logger.debug(
-                    "temporal_vote  track=%d  key=%s  recent=%d  "
-                    "positive_rate=%.2f  decision=%s",
-                    track_id, key, len(recent), positive_rate, decision,
-                )
+                recent = votes[-window:] if len(votes) >= window else votes
+                if not recent:
+                    decision = False
+                else:
+                    positive_rate = sum(recent) / len(recent)
+                    # Confirmed if rate in window >= threshold OR at least 5 cumulative detections
+                    decision = (positive_rate >= threshold) or (sum(votes) >= 5)
 
-            # Write back into the dataclass field
             setattr(state, f"final_{key}", decision)
             results[key] = decision
 

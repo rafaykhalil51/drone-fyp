@@ -46,10 +46,10 @@ class AccessoryDetector:
             self.model = YOLO(fallback_path)
             if "world" in fallback_path:
                 self.model.set_classes([
-                    "cap", "hat", "baseball cap",
-                    "mask", "face mask",
-                    "glasses", "eyeglasses", "sunglasses",
-                    "headphones", "over-ear headphones", "headset"
+                    "cap", "hat", "baseball cap", "beanie", "beret",
+                    "mask", "face mask", "surgical mask",
+                    "glasses", "eyeglasses", "sunglasses", "spectacles",
+                    "headphones", "over-ear headphones", "headset", "earphones", "wireless headphones"
                 ])
             self.is_custom = False
         else:
@@ -110,13 +110,13 @@ class AccessoryDetector:
     def _map_class_name(self, raw_name: str) -> str:
         """Map detected class label to canonical class name."""
         raw_name = raw_name.strip().lower()
-        if any(w in raw_name for w in ["cap", "hat", "helmet", "hood"]):
+        if any(w in raw_name for w in ["cap", "hat", "helmet", "hood", "beanie", "beret"]):
             return "cap"
         elif any(w in raw_name for w in ["mask", "facemask", "respirator"]):
             return "mask"
         elif any(w in raw_name for w in ["glass", "spectacle", "goggle"]):
             return "glasses"
-        elif any(w in raw_name for w in ["headphone", "earphone", "headset", "earmuff"]):
+        elif any(w in raw_name for w in ["headphone", "earphone", "headset", "earmuff", "earbud", "audio"]):
             return "headphones"
         elif raw_name in CANONICAL_CLASSES:
             return raw_name

@@ -279,7 +279,7 @@ if is_image:
               for i, p in enumerate(person_dets)]
 
     raw_accs = acc_detector.detect(frame, person_boxes=[t["xyxy"] for t in tracks])
-    acc_map  = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.45)
+    acc_map  = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.48)
     for t in tracks:
         t["accessories"] = acc_map.get(t["track_id"], [])
 
@@ -287,7 +287,7 @@ if is_image:
     for t in tracks:
         tid = t["track_id"]
         state_mgr.update_state(tid, t.get("accessories", []), 0)
-        state_mgr.apply_temporal_voting(tid, window=1, threshold=0.50)
+        state_mgr.apply_temporal_voting(tid, window=1, threshold=0.50, latch=True)
 
     all_st   = list(state_mgr.all_states().values())
     tot_p    = len(tracks)
@@ -346,7 +346,7 @@ else:
                 person_boxes = [t["xyxy"] for t in tracks] if tracks else []
                 raw_accs = acc_detector.detect(frame, person_boxes=person_boxes) if tracks else []
 
-                acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.40)
+                acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.48)
                 for t in tracks:
                     t["accessories"] = acc_map.get(t["track_id"], [])
 
@@ -355,7 +355,7 @@ else:
                     tid = t["track_id"]
                     if tid >= 0:
                         state_mgr.update_state(tid, t.get("accessories", []), frame_idx)
-                        state_mgr.apply_temporal_voting(tid, window=30, threshold=0.60)
+                        state_mgr.apply_temporal_voting(tid, window=30, threshold=0.35, latch=True)
 
                 all_st   = list(state_mgr.all_states().values())
                 tot_p    = state_mgr.total_unique
