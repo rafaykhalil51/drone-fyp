@@ -6,12 +6,17 @@ venv/
 
 # Generated outputs (keep source code only)
 output_annotated.mp4
+output_raw.mp4
+*.mp4
+*.avi
+*.mov
 tracks.csv
 summary.json
 final_report.csv
 final_report.json
-input.mp4
 *.jpg
+*.png
+*.jpeg
 
 # Temp scripts
 write_assoc.py
