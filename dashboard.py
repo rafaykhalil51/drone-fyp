@@ -213,19 +213,55 @@ _chart_n = 0
 def render_chart(tc=0, tm=0, tg=0, th=0, tn=0):
     global _chart_n
     _chart_n += 1
+    total = tc + tm + tg + th + tn
+    if total == 0:
+        labels = ['Awaiting Detection...']
+        values = [1]
+        colors = ['rgba(100, 116, 139, 0.4)']
+        textinfo = 'label'
+        center_text = 'STANDBY<br>READY'
+    else:
+        # Filter out 0 categories for clean slices
+        raw_cats = [
+            ('Caps 🧢', tc, '#ffb703'),
+            ('Masks 😷', tm, '#fb8500'),
+            ('Glasses 👓', tg, '#c77dff'),
+            ('Headphones 🎧', th, '#00ff87'),
+            ('Plain 👤', tn, '#64748b'),
+        ]
+        active_cats = [c for c in raw_cats if c[1] > 0]
+        if not active_cats:
+            active_cats = raw_cats
+        labels = [c[0] for c in active_cats]
+        values = [c[1] for c in active_cats]
+        colors = [c[2] for c in active_cats]
+        textinfo = 'label+percent'
+        center_text = f'{total}<br>GEAR'
+
     fig = go.Figure(data=[go.Pie(
-        labels=['Caps 🧢', 'Masks 😷', 'Glasses 👓', 'Headphones 🎧', 'Plain 👤'],
-        values=[tc, tm, tg, th, tn],
+        labels=labels,
+        values=values,
         hole=.65,
-        marker=dict(colors=['#ffb703', '#fb8500', '#c77dff', '#00ff87', '#64748b'],
-                    line=dict(color='#060913', width=3)),
-        textinfo='label+percent', hoverinfo='label+value',
+        marker=dict(colors=colors, line=dict(color='#060913', width=2)),
+        textinfo=textinfo,
+        hoverinfo='label+value',
         textfont=dict(family='Orbitron', size=11, color='#ffffff')
     )])
     fig.update_layout(
-        paper_bgcolor='rgba(13, 20, 36, 0.7)', plot_bgcolor='rgba(0,0,0,0)',
-        margin=dict(t=20, b=20, l=20, r=20), height=220, showlegend=False,
-        annotations=[dict(text='GEAR<br>SPECTRUM', x=0.5, y=0.5,
+        paper_bgcolor='rgba(13, 20, 36, 0.7)',
+        plot_bgcolor='rgba(0,0,0,0)',
+        margin=dict(t=15, b=15, l=15, r=15),
+        height=220,
+        showlegend=True,
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=-0.2,
+            xanchor="center",
+            x=0.5,
+            font=dict(family='Rajdhani', size=11, color='#cbd5e1')
+        ),
+        annotations=[dict(text=center_text, x=0.5, y=0.5,
                           font=dict(family='Orbitron', size=11, color='#00f2fe'), showarrow=False)]
     )
     chart_ph.plotly_chart(fig, key=f"gear_chart_{_chart_n}")

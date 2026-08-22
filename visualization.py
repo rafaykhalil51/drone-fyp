@@ -83,10 +83,19 @@ class Visualizer:
     def _draw_hud(self, frame: np.ndarray, totals: dict, counter=None):
         h, w = frame.shape[:2]
         overlay = frame.copy()
-        bar_height = 42
-        cv2.rectangle(overlay, (0, 0), (w, bar_height), (15, 23, 42), -1)
-        cv2.addWeighted(overlay, 0.75, frame, 0.25, 0, frame)
-        cv2.line(frame, (0, bar_height), (w, bar_height), (51, 65, 85), 1)
+        
+        # Scale banner height and font size proportionally to video resolution
+        scale = max(min(w / 1280.0, 1.6), 0.55)
+        bar_height = int(50 * scale)
+        font_scale = 0.55 * scale
+        font_thick = max(int(2 * scale), 1)
+        y_text = int(32 * scale)
+
+        # Translucent dark cyberpunk HUD header
+        cv2.rectangle(overlay, (0, 0), (w, bar_height), (6, 9, 19), -1)
+        cv2.addWeighted(overlay, 0.88, frame, 0.12, 0, frame)
+        # Neon cyan accent divider line
+        cv2.line(frame, (0, bar_height), (w, bar_height), (0, 242, 254), max(int(2 * scale), 1))
 
         if self.show_fps:
             self._frame_count += 1
@@ -99,32 +108,31 @@ class Visualizer:
 
         hud_items = []
         if totals:
-            hud_items.append(("Persons: " + str(totals.get("persons", 0)), (255, 255, 255)))
-            hud_items.append(("Caps: " + str(totals.get("caps", 0)), (0, 215, 255)))
-            hud_items.append(("Masks: " + str(totals.get("masks", 0)), (0, 140, 255)))
-            hud_items.append(("Glasses: " + str(totals.get("glasses", 0)), (216, 112, 255)))
-            hud_items.append(("Headphones: " + str(totals.get("headphones", 0)), (128, 255, 0)))
+            hud_items.append((f"TARGETS: {totals.get('persons', 0)}", (0, 242, 254)))      # Cyan
+            hud_items.append((f"CAPS: {totals.get('caps', 0)}", (3, 183, 255)))            # Amber
+            hud_items.append((f"MASKS: {totals.get('masks', 0)}", (0, 133, 251)))          # Orange
+            hud_items.append((f"GLASSES: {totals.get('glasses', 0)}", (255, 125, 199)))    # Purple
+            hud_items.append((f"HEADPHONES: {totals.get('headphones', 0)}", (135, 255, 0))) # Green
         else:
-            hud_items.append(("Live Analytics", (255, 255, 255)))
+            hud_items.append(("A.E.G.I.S. VISION HUD // ACTIVE", (0, 242, 254)))
 
-        curr_x = 12
-        y_text = 26
+        curr_x = int(14 * scale)
         for text, color in hud_items:
-            cv2.putText(frame, text, (curr_x, y_text), cv2.FONT_HERSHEY_SIMPLEX, 0.52, color, 2, cv2.LINE_AA)
-            (tw, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 0.52, 2)
-            curr_x += tw + 18
+            cv2.putText(frame, text, (curr_x, y_text), cv2.FONT_HERSHEY_SIMPLEX, font_scale, color, font_thick, cv2.LINE_AA)
+            (tw, _), _ = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thick)
+            curr_x += tw + int(16 * scale)
             if text != hud_items[-1][0]:
-                cv2.circle(frame, (curr_x - 9, y_text - 5), 2, (100, 116, 139), -1)
+                cv2.circle(frame, (curr_x - int(8 * scale), y_text - int(6 * scale)), int(3 * scale), (100, 116, 139), -1)
 
         right_str = ""
         if counter is not None:
-            right_str += f"In:{counter.count_in} Out:{counter.count_out} | "
+            right_str += f"IN:{counter.count_in} OUT:{counter.count_out} | "
         if self.show_fps:
             right_str += f"FPS:{self._fps_val:.1f}"
 
         if right_str:
-            (rw, _), _ = cv2.getTextSize(right_str, cv2.FONT_HERSHEY_SIMPLEX, 0.50, 1)
-            cv2.putText(frame, right_str, (w - rw - 14, y_text), cv2.FONT_HERSHEY_SIMPLEX, 0.50, (203, 213, 225), 1, cv2.LINE_AA)
+            (rw, _), _ = cv2.getTextSize(right_str, cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.9, 1)
+            cv2.putText(frame, right_str, (w - rw - int(14 * scale), y_text), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.9, (203, 213, 225), 1, cv2.LINE_AA)
 
     def _draw_accessory(self, frame: np.ndarray, acc: dict):
         ax1, ay1, ax2, ay2 = acc["xyxy"]
