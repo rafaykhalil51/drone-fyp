@@ -155,7 +155,7 @@ st.markdown("""
     </div>
     <div style="display: flex; gap: 10px; align-items: center;">
         <div class="telemetry-pill"><div class="pulse-dot"></div> SYS: ACTIVE // LIVE HUD</div>
-        <div class="telemetry-pill" style="color: #c77dff; border-color: rgba(199, 125, 255, 0.3); background: rgba(199, 125, 255, 0.08);">CORE: YOLOv8 + Accessory YOLO</div>
+        <div class="telemetry-pill" style="color: #c77dff; border-color: rgba(199, 125, 255, 0.3); background: rgba(199, 125, 255, 0.08);">CORE: YOLOv8 + BotSORT</div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -197,19 +197,19 @@ with left_col:
     progress_box = st.empty()
     status_box   = st.empty()
 
-    # Dedicated 2 Tabs: Upload Photo vs Upload Video
+    # Dedicated 2 Tabs: Upload Video (Default) vs Upload Photo
     st.markdown("<div class='cyber-card'>", unsafe_allow_html=True)
     st.markdown("<div style='font-family: Orbitron; font-size: 14px; font-weight: 700; color: #00f2fe; margin-bottom: 10px;'>⚡ INPUT CONTROL BAY</div>", unsafe_allow_html=True)
 
-    tab_photo, tab_video = st.tabs(["📷 1. UPLOAD PHOTO", "🎥 2. UPLOAD VIDEO"])
-
-    with tab_photo:
-        uploaded_photo = st.file_uploader("Upload Image File (JPG, PNG, WEBP, BMP, TIFF)", type=["jpg", "jpeg", "png", "webp", "bmp", "tiff"], key="photo_uploader")
-        btn_sample_photo = st.button("🎯 LOAD SAMPLE PHOTO", key="btn_sample_photo")
+    tab_video, tab_photo = st.tabs(["🎥 1. UPLOAD VIDEO", "📷 2. UPLOAD PHOTO"])
 
     with tab_video:
         uploaded_video = st.file_uploader("Upload Video File (MP4, AVI, MOV, MKV, WEBM, M4V)", type=["mp4", "avi", "mov", "mkv", "webm", "m4v", "wmv", "flv"], key="video_uploader")
         btn_sample_video = st.button("🎯 LOAD SAMPLE VIDEO (input.mp4)", key="btn_sample_video")
+
+    with tab_photo:
+        uploaded_photo = st.file_uploader("Upload Image File (JPG, PNG, WEBP, BMP, TIFF)", type=["jpg", "jpeg", "png", "webp", "bmp", "tiff"], key="photo_uploader")
+        btn_sample_photo = st.button("🎯 LOAD SAMPLE PHOTO", key="btn_sample_photo")
 
     c1, c2 = st.columns(2)
     with c1:
@@ -288,7 +288,7 @@ def render_chart(tc=0, tm=0, tg=0, th=0, tn=0):
     chart_container.plotly_chart(fig, key=f"gear_chart_{_chart_count}")
 
 # ── RESOLVE INPUT FILE & MODE ────────────────────────────────────────────────
-input_mode = "photo" # default
+input_mode = "video" # default home mode is Video
 target_media_path = None
 
 if uploaded_video is not None:
@@ -306,13 +306,17 @@ elif uploaded_photo is not None:
     tfile.write(uploaded_photo.read())
     tfile.flush()
     target_media_path = tfile.name
-elif btn_sample_photo or True:
+elif btn_sample_photo:
     input_mode = "photo"
     if os.path.exists("uploads/classroom_sample.jpg"):
         target_media_path = "uploads/classroom_sample.jpg"
-    elif os.path.exists("input.mp4"):
-        input_mode = "video"
-        target_media_path = "input.mp4"
+elif os.path.exists("input.mp4"):
+    # Default Home Page: load and run video
+    input_mode = "video"
+    target_media_path = "input.mp4"
+elif os.path.exists("uploads/classroom_sample.jpg"):
+    input_mode = "photo"
+    target_media_path = "uploads/classroom_sample.jpg"
 
 # ── INITIALIZE DETECTION & STATE ENGINES ─────────────────────────────────────
 acc_detector = load_accessory_detector(model_path, conf_thresh)
@@ -332,12 +336,12 @@ if input_mode == "photo" and target_media_path is not None:
         st.stop()
 
     p_detector  = load_person_detector(conf_thresh)
-    person_dets = p_detector.detect(frame)
+    person_dets = p_detector.detect(frame, imgsz=480)
     tracks = [{"track_id": i+1, "xyxy": p["xyxy"], "confidence": p["confidence"], "accessories": []}
               for i, p in enumerate(person_dets)]
 
-    raw_accs = acc_detector.detect(frame, person_boxes=[t["xyxy"] for t in tracks])
-    acc_map  = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.48)
+    raw_accs = acc_detector.detect(frame, person_boxes=[t["xyxy"] for t in tracks], imgsz=384)
+    acc_map  = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.52)
     for t in tracks:
         t["accessories"] = acc_map.get(t["track_id"], [])
 
