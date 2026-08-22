@@ -13,8 +13,9 @@ class PersonDetector:
         logger.info("PersonDetector loaded '%s'  mock_accessories=%s",
                     model_path, accessory_detector is not None)
 
-    def detect(self, frame):
+    def detect(self, frame, imgsz: int = 480):
         results = self.model.predict(frame, conf=self.confidence, iou=self.iou,
+                                     imgsz=imgsz,
                                      classes=[self.person_class_id], verbose=False)
         detections = []
         for result in results:

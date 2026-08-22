@@ -393,17 +393,22 @@ elif input_mode == "video" and target_media_path is not None:
                             persist=True, person_class_id=0)
 
     # Show Loading Animation Spinner while processing frames
-    with st.spinner("⚡ NEURAL INFERENCE IN PROGRESS // ANALYZING VIDEO FRAMES..."):
+    with st.spinner("⚡ HIGH-SPEED NEURAL INFERENCE IN PROGRESS // ANALYZING FRAMES..."):
+        last_acc_map = {}
         try:
             with source:
                 for frame in source:
-                    tracks = tracker.track(frame)
-                    person_boxes = [t["xyxy"] for t in tracks] if tracks else []
-                    raw_accs = acc_detector.detect(frame, person_boxes=person_boxes) if tracks else []
+                    # 1. Fast Person Tracking at imgsz=480
+                    tracks = tracker.track(frame, imgsz=480)
+                    
+                    # 2. High-speed accessory detection every 3rd frame
+                    if tracks and (frame_idx % 3 == 0 or not last_acc_map):
+                        person_boxes = [t["xyxy"] for t in tracks]
+                        raw_accs = acc_detector.detect(frame, person_boxes=person_boxes, imgsz=384)
+                        last_acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.48)
 
-                    acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.48)
                     for t in tracks:
-                        t["accessories"] = acc_map.get(t["track_id"], [])
+                        t["accessories"] = last_acc_map.get(t["track_id"], [])
 
                     state_mgr.update(frame_idx, tracks)
                     for t in tracks:
@@ -425,7 +430,7 @@ elif input_mode == "video" and target_media_path is not None:
                     writer.write(annotated)
 
                     frame_idx += 1
-                    if frame_idx % 8 == 0 or frame_idx == total_frames:
+                    if frame_idx % 12 == 0 or frame_idx == total_frames:
                         pct = min(frame_idx / total_frames, 1.0)
                         prog_bar.progress(pct)
                         fps_now = frame_idx / max(time.time() - t0, 0.01)
@@ -434,8 +439,8 @@ elif input_mode == "video" and target_media_path is not None:
                             ⚡ PROCESSING: {frame_idx}/{total_frames} frames ({pct*100:.0f}%) // AI Inference: {fps_now:.1f} FPS
                         </div>
                         """, unsafe_allow_html=True)
-                        rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
-                        viewport_box.image(rgb, channels="RGB", width="stretch")
+                        update_top_metrics(tot_p, tot_cap, tot_mask, tot_gls, tot_hd, tot_none)
+                        render_chart(tot_cap, tot_mask, tot_gls, tot_hd, tot_none)
         finally:
             writer.release()
             exporter.save(state_mgr)

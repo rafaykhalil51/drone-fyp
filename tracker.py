@@ -14,11 +14,12 @@ class PersonTracker:
         logger.info("PersonTracker ready model='%s' tracker='%s'",
                     model_path, tracker_config)
 
-    def track(self, frame):
+    def track(self, frame, imgsz: int = 480):
         results = self.model.track(
             frame,
             conf=self.confidence,
             iou=self.iou,
+            imgsz=imgsz,
             classes=[self.person_class_id],
             tracker=self.tracker_config,
             persist=self.persist,

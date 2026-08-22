@@ -62,7 +62,7 @@ class AccessoryDetector:
             model_path, confidence, iou_threshold
         )
 
-    def detect(self, frame: np.ndarray, person_boxes: list = None) -> list[dict]:
+    def detect(self, frame: np.ndarray, person_boxes: list = None, imgsz: int = 384) -> list[dict]:
         """
         Run accessory detection on frame.
 
@@ -70,6 +70,7 @@ class AccessoryDetector:
         ----------
         frame        : np.ndarray image in BGR format
         person_boxes : optional list of person bounding boxes
+        imgsz        : input image size for inference
 
         Returns
         -------
@@ -82,6 +83,7 @@ class AccessoryDetector:
             frame,
             conf=self.confidence,
             iou=self.iou,
+            imgsz=imgsz,
             verbose=False,
         )
 
