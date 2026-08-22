@@ -204,11 +204,11 @@ with left_col:
     tab_photo, tab_video = st.tabs(["📷 1. UPLOAD PHOTO", "🎥 2. UPLOAD VIDEO"])
 
     with tab_photo:
-        uploaded_photo = st.file_uploader("Upload Image File (JPG, PNG, WEBP)", type=["jpg", "jpeg", "png", "webp"], key="photo_uploader")
+        uploaded_photo = st.file_uploader("Upload Image File (JPG, PNG, WEBP, BMP, TIFF)", type=["jpg", "jpeg", "png", "webp", "bmp", "tiff"], key="photo_uploader")
         btn_sample_photo = st.button("🎯 LOAD SAMPLE PHOTO", key="btn_sample_photo")
 
     with tab_video:
-        uploaded_video = st.file_uploader("Upload Video File (MP4, AVI, MOV)", type=["mp4", "avi", "mov", "mkv"], key="video_uploader")
+        uploaded_video = st.file_uploader("Upload Video File (MP4, AVI, MOV, MKV, WEBM, M4V)", type=["mp4", "avi", "mov", "mkv", "webm", "m4v", "wmv", "flv"], key="video_uploader")
         btn_sample_video = st.button("🎯 LOAD SAMPLE VIDEO (input.mp4)", key="btn_sample_video")
 
     c1, c2 = st.columns(2)
