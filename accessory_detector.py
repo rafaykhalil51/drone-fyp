@@ -49,7 +49,8 @@ class AccessoryDetector:
                     "cap", "hat", "baseball cap", "beanie", "beret",
                     "mask", "face mask", "surgical mask",
                     "glasses", "eyeglasses", "sunglasses", "spectacles",
-                    "headphones", "over-ear headphones", "headset", "earphones", "wireless headphones"
+                    "headphones", "over-ear headphones", "headset", "earphones", "wireless headphones",
+                    "headphones on head", "headphones on neck", "black headphones", "earmuffs"
                 ])
             self.is_custom = False
         else:
@@ -79,9 +80,12 @@ class AccessoryDetector:
         if frame is None:
             return []
 
+        # Use responsive confidence gate (min 0.18) to catch subtle/angled headphones
+        effective_conf = min(self.confidence, 0.18) if not self.is_custom else self.confidence
+
         results = self.model.predict(
             frame,
-            conf=self.confidence,
+            conf=effective_conf,
             iou=self.iou,
             imgsz=imgsz,
             verbose=False,

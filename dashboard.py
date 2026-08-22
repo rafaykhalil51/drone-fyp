@@ -401,11 +401,11 @@ elif input_mode == "video" and target_media_path is not None:
                     # 1. Fast Person Tracking at imgsz=480
                     tracks = tracker.track(frame, imgsz=480)
                     
-                    # 2. High-speed accessory detection every 3rd frame
-                    if tracks and (frame_idx % 3 == 0 or not last_acc_map):
+                    # 2. High-precision accessory detection every 2nd frame
+                    if tracks and (frame_idx % 2 == 0 or not last_acc_map):
                         person_boxes = [t["xyxy"] for t in tracks]
                         raw_accs = acc_detector.detect(frame, person_boxes=person_boxes, imgsz=384)
-                        last_acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.48)
+                        last_acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.52)
 
                     for t in tracks:
                         t["accessories"] = last_acc_map.get(t["track_id"], [])
