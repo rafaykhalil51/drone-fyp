@@ -434,17 +434,20 @@ elif input_mode == "video" and target_media_path is not None:
                     writer.write(annotated)
 
                     frame_idx += 1
-                    if frame_idx % 12 == 0 or frame_idx == total_frames:
+                    # Stream live video frames in real time to viewport
+                    if frame_idx % 3 == 0 or frame_idx == total_frames:
                         pct = min(frame_idx / total_frames, 1.0)
                         prog_bar.progress(pct)
                         fps_now = frame_idx / max(time.time() - t0, 0.01)
                         status_box.markdown(f"""
                         <div class="telemetry-pill" style="color: #ffb703; border-color: #ffb703; font-size: 12px;">
-                            ⚡ PROCESSING: {frame_idx}/{total_frames} frames ({pct*100:.0f}%) // AI Inference: {fps_now:.1f} FPS
+                            ⚡ LIVE AI STREAMING: {frame_idx}/{total_frames} frames ({pct*100:.0f}%) // {fps_now:.1f} FPS
                         </div>
                         """, unsafe_allow_html=True)
                         update_top_metrics(tot_p, tot_cap, tot_mask, tot_gls, tot_hd, tot_none)
                         render_chart(tot_cap, tot_mask, tot_gls, tot_hd, tot_none)
+                        rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                        viewport_box.image(rgb, channels="RGB", width="stretch")
         finally:
             writer.release()
             exporter.save(state_mgr)
