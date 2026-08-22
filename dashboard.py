@@ -370,16 +370,18 @@ else:
                 writer.write(annotated)
 
                 frame_idx += 1
-                # Update UI sparingly to keep processing fast
-                if frame_idx % 30 == 0 or frame_idx == total_frames:
+                # Update live preview and telemetry every 6 frames
+                if frame_idx % 6 == 0 or frame_idx == total_frames:
                     pct = min(frame_idx / total_frames, 1.0)
                     prog_bar.progress(pct)
                     fps_now = frame_idx / max(time.time() - t0, 0.01)
                     status_box.markdown(f"""
                     <div class="telemetry-pill" style="color: #ffb703; border-color: #ffb703; font-size: 12px;">
-                        ⚡ PROCESSING: {frame_idx}/{total_frames} frames ({pct*100:.0f}%) // {fps_now:.1f} FPS
+                        ⚡ SCANNING: {frame_idx}/{total_frames} frames ({pct*100:.0f}%) // {fps_now:.1f} FPS
                     </div>
                     """, unsafe_allow_html=True)
+                    rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
+                    video_box.image(rgb, channels="RGB", width="stretch")
     finally:
         writer.release()
         exporter.save(state_mgr)
@@ -398,15 +400,18 @@ else:
         ffmpeg_exe = imageio_ffmpeg.get_ffmpeg_exe()
     except ImportError:
         ffmpeg_exe = "ffmpeg"
+
+    play_path = out_raw
     try:
-        subprocess.run([
+        res = subprocess.run([
             ffmpeg_exe, "-y", "-i", out_raw,
             "-c:v", "libx264", "-preset", "fast", "-crf", "23",
             "-pix_fmt", "yuv420p", "-movflags", "+faststart",
             out_final
         ], capture_output=True, timeout=120)
-        play_path = out_final
-    except (FileNotFoundError, subprocess.TimeoutExpired):
+        if res.returncode == 0 and os.path.exists(out_final) and os.path.getsize(out_final) > 0:
+            play_path = out_final
+    except Exception as e:
         play_path = out_raw
 
     status_box.markdown(f"""
@@ -416,7 +421,9 @@ else:
     """, unsafe_allow_html=True)
 
     if os.path.exists(play_path):
-        video_box.video(play_path)
+        with open(play_path, "rb") as vf:
+            video_bytes = vf.read()
+        video_box.video(video_bytes, format="video/mp4", autoplay=True)
 
 # ── REPORTS & TABLE ──────────────────────────────────────────────────────────
 acc_counter.compute(state_mgr)
