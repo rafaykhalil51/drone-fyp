@@ -11,9 +11,13 @@ class VideoSource:
             raise FileNotFoundError(f"Cannot open video source: {source}")
         self.width  = int(self._cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         self.height = int(self._cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-        self.fps    = self._cap.get(cv2.CAP_PROP_FPS) or 25.0
+        raw_fps = self._cap.get(cv2.CAP_PROP_FPS)
+        if raw_fps and 1.0 <= raw_fps <= 120.0:
+            self.fps = float(raw_fps)
+        else:
+            self.fps = 30.0
         self.total_frames = int(self._cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        logger.info("Opened '%s'  %dx%d  %.1f fps  %d frames",
+        logger.info("Opened '%s'  %dx%d  %.2f fps  %d frames",
                     source, self.width, self.height, self.fps, self.total_frames)
 
     def __iter__(self):

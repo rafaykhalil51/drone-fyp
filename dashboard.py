@@ -324,10 +324,11 @@ else:
                             iou_threshold=0.50, tracker_config="botsort.yaml",
                             persist=True, person_class_id=0)
 
+    target_fps = float(source.fps) if (source.fps and 1.0 <= source.fps <= 120.0) else 30.0
     out_raw  = "output_raw.mp4"
     out_final = "output_annotated.mp4"
     writer = cv2.VideoWriter(out_raw, cv2.VideoWriter_fourcc(*"mp4v"),
-                             source.fps, (source.width, source.height))
+                             target_fps, (source.width, source.height))
 
     total_frames = max(source.total_frames, 1)
     frame_idx = 0
@@ -370,14 +371,14 @@ else:
                 writer.write(annotated)
 
                 frame_idx += 1
-                # Update live preview and telemetry every 6 frames
-                if frame_idx % 6 == 0 or frame_idx == total_frames:
+                # Update live scanning progress
+                if frame_idx % 8 == 0 or frame_idx == total_frames:
                     pct = min(frame_idx / total_frames, 1.0)
                     prog_bar.progress(pct)
                     fps_now = frame_idx / max(time.time() - t0, 0.01)
                     status_box.markdown(f"""
                     <div class="telemetry-pill" style="color: #ffb703; border-color: #ffb703; font-size: 12px;">
-                        ⚡ SCANNING: {frame_idx}/{total_frames} frames ({pct*100:.0f}%) // {fps_now:.1f} FPS
+                        ⚡ SCANNING: {frame_idx}/{total_frames} frames ({pct*100:.0f}%) // AI Inference: {fps_now:.1f} FPS
                     </div>
                     """, unsafe_allow_html=True)
                     rgb = cv2.cvtColor(annotated, cv2.COLOR_BGR2RGB)
@@ -393,7 +394,7 @@ else:
     prog_bar.progress(1.0)
     elapsed = time.time() - t0
 
-    # Convert to H.264 for browser-compatible normal-speed playback
+    # Convert to H.264 enforcing exact native framerate
     import subprocess
     try:
         import imageio_ffmpeg
@@ -404,9 +405,15 @@ else:
     play_path = out_raw
     try:
         res = subprocess.run([
-            ffmpeg_exe, "-y", "-i", out_raw,
-            "-c:v", "libx264", "-preset", "fast", "-crf", "23",
-            "-pix_fmt", "yuv420p", "-movflags", "+faststart",
+            ffmpeg_exe, "-y",
+            "-r", f"{target_fps:.2f}",
+            "-i", out_raw,
+            "-c:v", "libx264",
+            "-r", f"{target_fps:.2f}",
+            "-preset", "fast",
+            "-crf", "22",
+            "-pix_fmt", "yuv420p",
+            "-movflags", "+faststart",
             out_final
         ], capture_output=True, timeout=120)
         if res.returncode == 0 and os.path.exists(out_final) and os.path.getsize(out_final) > 0:
@@ -416,7 +423,7 @@ else:
 
     status_box.markdown(f"""
     <div class="telemetry-pill" style="color: #00ff87; border-color: #00ff87; font-size: 12px;">
-        ⚡ MISSION COMPLETE: {frame_idx} FRAMES // {elapsed:.1f}s // {frame_idx/elapsed:.1f} FPS // {state_mgr.total_unique} TARGETS
+        ⚡ MISSION COMPLETE: {frame_idx} FRAMES // Video Playback: {target_fps:.1f} FPS (1.0x Real-Time Speed) // {state_mgr.total_unique} TARGETS
     </div>
     """, unsafe_allow_html=True)
 
@@ -457,3 +464,13 @@ if os.path.exists("final_report.json"):
     with open("final_report.json", "r") as f:
         json_ph.download_button("📥 EXPORT JSON TELEMETRY", data=f.read(),
                                 file_name="final_report.json", mime="application/json", key="dl_json")
+
+if not is_image and os.path.exists(play_path):
+    with open(play_path, "rb") as vf:
+        st.download_button(
+            "📹 DOWNLOAD ANNOTATED VIDEO (1.0x NORMAL SPEED)",
+            data=vf.read(),
+            file_name="annotated_video_1x.mp4",
+            mime="video/mp4",
+            key="dl_vid"
+        )
