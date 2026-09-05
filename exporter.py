@@ -65,7 +65,7 @@ class Exporter:
 
     # ── new final-report writers ───────────────────────────────────────────
     def save_final_report(self, state_manager, line_counter=None,
-                          acc_counter=None):
+                          acc_counter=None, accessory_source=None):
         """
         Write final_report.csv and final_report.json.
 
@@ -130,6 +130,12 @@ class Exporter:
             aggregate["line_count_in"]    = line_counter.count_in
             aggregate["line_count_out"]   = line_counter.count_out
             aggregate["line_count_total"] = line_counter.total
+
+        # Record which detector produced the accessory columns. Without this a
+        # report from the experimental zero-shot mode is indistinguishable from
+        # one produced by a trained model.
+        if accessory_source:
+            aggregate["accessory_source"] = accessory_source
 
         # ── write CSV ───────────────────────────────────────────────────────
         if self.final_report_csv:

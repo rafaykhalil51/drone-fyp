@@ -1,0 +1,29 @@
+# Project-local BoT-SORT config for person tracking.
+# Tuned against the Ultralytics defaults to reduce identity fragmentation,
+# which was inflating the unique-person count with re-issued track IDs.
+
+tracker_type: botsort
+
+# Raised from 0.25: only reasonably confident detections start/extend tracks,
+# so flickering low-score boxes stop spawning throwaway IDs.
+track_high_thresh: 0.40
+track_low_thresh: 0.20
+
+# Raised from 0.25: a brand-new identity now needs strong evidence, so a
+# person who is briefly occluded is re-matched instead of given a new ID.
+new_track_thresh: 0.55
+
+# Raised from 30: keep lost tracks alive ~4s at 30fps so people who leave and
+# re-enter the frame are re-associated to their original ID.
+track_buffer: 120
+
+match_thresh: 0.85
+fuse_score: True
+
+gmc_method: sparseOptFlow
+
+# Appearance ReID keeps identities stable across occlusion and crossing paths.
+proximity_thresh: 0.5
+appearance_thresh: 0.8
+with_reid: True
+model: auto

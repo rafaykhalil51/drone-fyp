@@ -1,0 +1,88 @@
+# ---------------------------------------------------------------------------
+# data.yaml - dataset definition for the A.E.G.I.S. accessory model
+# ---------------------------------------------------------------------------
+# Used by train_accessory_model.py to train models/accessory_best.pt.
+#
+# The class ORDER below is the contract between your labels and the trained
+# model. Your label .txt files must use these exact indices:
+#
+#     0 = cap
+#     1 = mask
+#     2 = glasses
+#     3 = headphones
+#
+# If you export from Roboflow, CVAT, or Label Studio, open the data.yaml it
+# generates and confirm its `names` list matches this order. If it does not,
+# either reorder it there or re-map the class indices in your label files --
+# do NOT just edit this file, or every prediction will be mislabelled.
+# ---------------------------------------------------------------------------
+
+# `path` is the dataset root. Paths below are resolved relative to it.
+# Leave as-is to use <project-root>/dataset/.
+path: dataset
+
+train: images/train
+val: images/val
+test: images/test        # optional; remove the line if you have no test split
+
+# ── classes ────────────────────────────────────────────────────────────────
+# Order is significant. Do not sort alphabetically.
+names:
+  0: cap
+  1: mask
+  2: glasses
+  3: headphones
+
+# ---------------------------------------------------------------------------
+# Expected directory layout
+# ---------------------------------------------------------------------------
+# dataset/
+#   data.yaml                  <- this file
+#   images/
+#     train/  img_0001.jpg ...
+#     val/    img_0101.jpg ...
+#     test/   img_0201.jpg ...   (optional)
+#   labels/
+#     train/  img_0001.txt ...
+#     val/    img_0101.txt ...
+#     test/   img_0201.txt ...   (optional)
+#
+# Ultralytics finds labels by swapping "images" for "labels" in the path, so
+# the two trees must mirror each other and filenames must match exactly
+# (img_0001.jpg <-> img_0001.txt).
+#
+# ---------------------------------------------------------------------------
+# Label format (YOLO)
+# ---------------------------------------------------------------------------
+# One line per object, coordinates NORMALISED to 0-1 relative to image size:
+#
+#     <class_index> <x_center> <y_center> <width> <height>
+#
+# Example -- one cap and one pair of glasses:
+#
+#     0 0.4812 0.2140 0.0930 0.0615
+#     2 0.4770 0.2585 0.0640 0.0240
+#
+# An image with no accessories gets an EMPTY .txt file (not a missing one).
+# Those negative examples matter: without them the model over-predicts.
+#
+# ---------------------------------------------------------------------------
+# Annotation guidance for this project
+# ---------------------------------------------------------------------------
+# Box the ACCESSORY itself, not the head or the person.
+#
+#   cap         the cap/hat only, including the peak
+#   mask        the mask covering the face; do NOT label a mask worn on the
+#               chin or hanging off one ear as `mask` -- leave it unlabelled,
+#               otherwise the model learns "mask present" for people who are
+#               not actually wearing one
+#   glasses     the frames/lenses; sunglasses count
+#   headphones  the earcups/headband; headphones around the NECK are not
+#               being worn, so leave them unlabelled
+#
+# The pipeline associates each accessory box with a person's head region, so
+# tight boxes on the accessory give much better association than loose ones.
+#
+# Because this is drone footage, include the altitudes, tilt angles and
+# lighting you actually fly in. A model trained only on ground-level photos
+# will not transfer to a top-down drone view.

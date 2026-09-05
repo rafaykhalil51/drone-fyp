@@ -31,11 +31,35 @@ app.config["STATIC_FOLDER"] = "static"
 Path("uploads").mkdir(exist_ok=True)
 Path("static").mkdir(exist_ok=True)
 
-# Preload models
-logger.info("Preloading PersonDetector and AccessoryDetector (accessory_best.pt)...")
-person_detector = PersonDetector("yolov8n.pt", confidence=0.30, iou_threshold=0.5)
-acc_detector = AccessoryDetector(model_path="accessory_best.pt", confidence=0.25)
-mock_acc_detector = MockAccessoryDetector(seed=42, max_per_person=2)
+# Preload models. Paths and thresholds come from config.yaml so this entry
+# point cannot drift from the dashboard's configuration.
+from app_config import (
+    accessory_confidence, accessory_imgsz, accessory_model_path,
+    person_confidence, person_model_path, use_mock_accessories,
+)
+
+USE_MOCK_ACCESSORIES = use_mock_accessories()
+
+logger.info("Preloading PersonDetector and AccessoryDetector...")
+person_detector = PersonDetector(
+    person_model_path(), confidence=person_confidence(), iou_threshold=0.5
+)
+acc_detector = AccessoryDetector(
+    model_path=accessory_model_path(),
+    confidence=accessory_confidence(),
+    imgsz=accessory_imgsz(),
+)
+
+# Only instantiate the mock detector when it is explicitly enabled, so real
+# mode cannot fabricate cap/mask/glasses/headphones results.
+mock_acc_detector = (
+    MockAccessoryDetector(seed=42, max_per_person=2) if USE_MOCK_ACCESSORIES else None
+)
+if USE_MOCK_ACCESSORIES:
+    logger.warning("MOCK accessory detection is ON — results are synthetic.")
+else:
+    logger.info("Mock accessory detection: OFF (real mode).")
+
 visualizer = Visualizer(vis_cfg={"box_thickness": 2, "text_scale": 0.65, "show_confidence": True})
 
 
@@ -56,11 +80,18 @@ def analyze_image_file(image_path: str, mode: str = "real"):
             "accessories": []
         })
 
-    # 2. Detect Accessories
-    if mode == "real":
-        raw_accs = acc_detector.detect(frame, person_boxes=[t["xyxy"] for t in tracks])
-    else:
+    # 2. Detect Accessories. A "mock" request is only honoured when mocks are
+    #    enabled in config.yaml; otherwise it falls back to the real detector,
+    #    which returns nothing when no trained model is present.
+    if mode != "real" and mock_acc_detector is not None:
         raw_accs = mock_acc_detector.detect([t["xyxy"] for t in tracks])
+    else:
+        if mode != "real":
+            logger.warning(
+                "Mock mode requested but use_mock_accessories is false; "
+                "using the real accessory detector instead."
+            )
+        raw_accs = acc_detector.detect(frame, person_boxes=[t["xyxy"] for t in tracks])
 
     # 3. Associate accessories with upper 45% head region
     acc_map = associate_accessories_to_tracks(tracks, raw_accs, head_fraction=0.45)

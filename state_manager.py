@@ -5,7 +5,43 @@ from typing import Optional, Any
 
 logger = logging.getLogger(__name__)
 
-ACCESSORY_KEYS = ("mask", "cap", "glasses", "headphones")
+from voting_config import ACCESSORY_KEYS, PHOTO_VOTING, VOTING, VotingConfig
+
+# Backwards-compatible aliases; tune values in voting_config.py.
+MIN_OBSERVATIONS = VOTING.min_frames_seen
+MIN_POSITIVE_VOTES = VOTING.min_hits
+
+
+def _vote_decision(
+    votes: list,
+    accessory: str,
+    config: VotingConfig,
+    window: int | None,
+) -> bool:
+    """
+    Shared voting rule for sliding-window and end-of-video evaluation.
+
+    True only when the track has enough frames, enough hits, and a hit ratio
+    at or above the configured threshold for *accessory*.
+    """
+    frames_seen = len(votes)
+    if frames_seen == 0:
+        return False
+
+    hits = sum(votes)
+    if hits < config.min_hits:
+        return False
+
+    if frames_seen < config.min_frames_seen:
+        # Track too short to trust a ratio; demand unanimous evidence.
+        return hits == frames_seen
+
+    scope = votes[-window:] if window else votes
+    if not scope:
+        return False
+
+    ratio = sum(scope) / len(scope)
+    return ratio >= config.threshold_for(accessory)
 
 
 @dataclass
@@ -70,6 +106,71 @@ class TrackState:
         """Return names of accessories whose final flag is True."""
         return [k for k, v in self.final_flags().items() if v]
 
+    def observation_counts(self) -> dict[str, int]:
+        """
+        Number of frames each accessory was actually observed on this track.
+
+        e.g. {"cap": 18, "mask": 0, "glasses": 14, "headphones": 0}
+        """
+        return {key: sum(votes) for key, votes in self.vote_lists().items()}
+
+    # ── temporal voting inputs ────────────────────────────────────────────
+    @property
+    def frames_seen(self) -> int:
+        """Frames in which this track was observed and evidence recorded."""
+        return len(self.cap_votes)
+
+    @property
+    def cap_hits(self) -> int:
+        return sum(self.cap_votes)
+
+    @property
+    def mask_hits(self) -> int:
+        return sum(self.mask_votes)
+
+    @property
+    def glasses_hits(self) -> int:
+        return sum(self.glasses_votes)
+
+    @property
+    def headphones_hits(self) -> int:
+        return sum(self.headphones_votes)
+
+    def hit_counts(self) -> dict[str, int]:
+        """{"mask": n, "cap": n, "glasses": n, "headphones": n}"""
+        return self.observation_counts()
+
+    def ratio_for(self, accessory: str) -> float:
+        """hits / frames_seen for *accessory* (0.0 when never observed)."""
+        frames = self.frames_seen
+        if frames == 0:
+            return 0.0
+        return sum(self.vote_lists()[accessory]) / frames
+
+    @property
+    def cap_ratio(self) -> float:
+        return self.ratio_for("cap")
+
+    @property
+    def mask_ratio(self) -> float:
+        return self.ratio_for("mask")
+
+    @property
+    def glasses_ratio(self) -> float:
+        return self.ratio_for("glasses")
+
+    @property
+    def headphones_ratio(self) -> float:
+        return self.ratio_for("headphones")
+
+    def ratios(self) -> dict[str, float]:
+        """{"mask": r, "cap": r, "glasses": r, "headphones": r}"""
+        return {key: self.ratio_for(key) for key in ACCESSORY_KEYS}
+
+    def observed_frames(self) -> int:
+        """Deprecated alias for frames_seen."""
+        return self.frames_seen
+
 
 class StateManager:
     """
@@ -78,7 +179,7 @@ class StateManager:
     Key additions over the previous version:
       - update_state(track_id, frame_associations, frame_index)
             Appends one evidence observation per accessory class.
-      - apply_temporal_voting(track_id, window, threshold)
+      - apply_temporal_voting(track_id, config)   thresholds: voting_config.py
             Sets final_* flags using a sliding-window majority vote.
     """
 
@@ -177,49 +278,77 @@ class StateManager:
     def apply_temporal_voting(
         self,
         track_id: int,
-        window: int   = 30,
-        threshold: float = 0.35,
-        latch: bool = True,
+        config: VotingConfig = VOTING,
+        window: int | None = None,
+        latch: bool | None = None,
     ) -> dict[str, bool]:
         """
-        Evaluate sliding-window and cumulative evidence for each accessory class
-        and update the corresponding final_* flag on the track's state.
+        Provisional voting over a sliding window, used to drive the live HUD
+        while a video is still processing.
 
-        With latch=True, once an accessory is confirmed on a track, it remains
-        confirmed even during momentary occlusions or head turns.
+        A single frame can never confirm an accessory: the track needs at least
+        config.min_frames_seen frames and config.min_hits positive frames, and
+        the hit ratio must reach the configured threshold for that accessory.
+
+        Thresholds live in voting_config.py.
         """
         state = self._states.get(track_id)
         if state is None:
             logger.warning("apply_temporal_voting: unknown track_id=%d", track_id)
             return {}
 
+        window = config.live_window if window is None else window
+        latch = config.live_latch if latch is None else latch
+
         results: dict[str, bool] = {}
 
         for key in ACCESSORY_KEYS:
-            votes = state.vote_lists()[key]
-            current_flag = getattr(state, f"final_{key}", False)
-
-            if latch and current_flag:
-                # Already confirmed for this track
+            if latch and getattr(state, f"final_{key}", False):
                 decision = True
             else:
-                recent = votes[-window:] if len(votes) >= window else votes
-                if not recent:
-                    decision = False
-                else:
-                    positive_rate = sum(recent) / len(recent)
-                    # Confirmed if rate in window >= threshold OR at least 5 cumulative detections
-                    decision = (positive_rate >= threshold) or (sum(votes) >= 5)
-
+                decision = _vote_decision(
+                    state.vote_lists()[key], key, config, window
+                )
             setattr(state, f"final_{key}", decision)
             results[key] = decision
 
         return results
 
+    def finalize_accessories(
+        self,
+        config: VotingConfig = VOTING,
+    ) -> dict[int, dict[str, bool]]:
+        """
+        Authoritative decision for every unique track, using its full frame
+        history rather than a sliding window. Call once after the last frame.
+        """
+        results: dict[int, dict[str, bool]] = {}
+
+        for tid, state in self._states.items():
+            flags: dict[str, bool] = {}
+            for key in ACCESSORY_KEYS:
+                decision = _vote_decision(state.vote_lists()[key], key, config, None)
+                setattr(state, f"final_{key}", decision)
+                flags[key] = decision
+            results[tid] = flags
+
+            logger.debug(
+                "track %d frames_seen=%d hits=%s ratios=%s -> %s",
+                tid, state.frames_seen, state.hit_counts(),
+                {k: round(v, 3) for k, v in state.ratios().items()},
+                state.active_finals() or "none",
+            )
+
+        confirmed = sum(1 for f in results.values() if any(f.values()))
+        logger.info(
+            "finalize_accessories: %d tracks evaluated, %d with confirmed gear",
+            len(results), confirmed,
+        )
+        return results
+
     def apply_voting_all(
         self,
-        window: int = 30,
-        threshold: float = 0.6,
+        config: VotingConfig = VOTING,
     ) -> dict[int, dict[str, bool]]:
         """
         Convenience: call apply_temporal_voting for every known track.
@@ -229,9 +358,40 @@ class StateManager:
         dict mapping track_id -> {accessory -> bool}
         """
         return {
-            tid: self.apply_temporal_voting(tid, window, threshold)
+            tid: self.apply_temporal_voting(tid, config)
             for tid in self._states
         }
+
+    def observation_report(self) -> dict[int, dict[str, int]]:
+        """
+        Per-track accessory observation tallies, keyed by persistent track ID.
+
+        e.g. {12: {"cap": 18, "mask": 0, "glasses": 14, "headphones": 0}}
+        """
+        return {
+            tid: state.observation_counts()
+            for tid, state in sorted(self._states.items())
+        }
+
+    def format_observation_report(self, config: VotingConfig = VOTING) -> str:
+        """
+        Per-track voting breakdown for the dashboard diagnostics panel: hits,
+        ratio, threshold, and the resulting decision.
+        """
+        lines = []
+        for tid, state in sorted(self._states.items()):
+            counts = state.hit_counts()
+            ratios = state.ratios()
+            lines.append(f"track {tid}:  frames_seen = {state.frames_seen}")
+            for key in ACCESSORY_KEYS:
+                thr = config.threshold_for(key)
+                confirmed = getattr(state, f"final_{key}")
+                verdict = "WEARING" if confirmed else "no"
+                lines.append(
+                    f"  {key + '_hits':<18} = {counts[key]:<5}"
+                    f" ratio = {ratios[key]:.2f}  (>= {thr:.2f})  -> {verdict}"
+                )
+        return "\n".join(lines) if lines else "No tracks recorded."
 
     def accessory_summary(self) -> dict[int, list[str]]:
         """

@@ -9,7 +9,7 @@ Per-frame pipeline sequence:
   3. Accessory Detector -> Mock/Real detector to find cap, mask, glasses, headphones
   4. Association  -> associate_accessories_to_tracks (upper 40% head/shoulder region test)
   5. StateManager -> update_state(track_id, accessories, frame_idx)
-  6. Temporal Voting -> apply_temporal_voting(track_id, window, threshold)
+  6. Temporal Voting -> apply_temporal_voting(track_id, VOTING)  [voting_config.py]
   7. Visualizer   -> Draw bounding boxes, IDs, accessories, and Live Totals HUD overlay
   8. VideoWriter  -> Write annotated frame to output MP4
 
@@ -37,6 +37,7 @@ from counter                 import LineCounter, AccessoryCounter
 from visualization           import Visualizer
 from exporter                import Exporter
 from association             import associate_accessories_to_tracks
+from voting_config           import VOTING
 
 
 def setup_logging(level: str):
@@ -73,19 +74,44 @@ def main(config_path: str = "config.yaml"):
     exp_cfg = cfg["export"]
     acc_cfg = cfg.get("accessories", {})
 
-    vote_window = acc_cfg.get("vote_window", 30)
-    vote_threshold = acc_cfg.get("vote_threshold", 0.60)
+    # Accessory voting thresholds live in voting_config.py, not config.yaml.
     head_fraction = acc_cfg.get("head_fraction", 0.40)
 
     logger.info("Initialising pipeline components...")
     source = VideoSource(vid_cfg["source"])
     fps = float(vid_cfg["fps_override"] or source.fps)
 
-    # 1. Accessory Detector (loads accessory_best.pt, runs alongside person detector)
+    # 1. Accessory Detector (custom weights; runs alongside person detector).
+    #    Returns no detections when the trained model is absent or invalid,
+    #    so accessory counts stay at zero rather than being fabricated.
     accessory_detector = AccessoryDetector(
-        model_path=acc_cfg.get("model_path", "accessory_best.pt"),
-        confidence=acc_cfg.get("confidence", 0.30),
+        model_path=acc_cfg.get("model_path", "models/accessory_best.pt"),
+        confidence=acc_cfg.get("confidence", 0.35),
         iou_threshold=acc_cfg.get("iou_threshold", 0.50),
+        imgsz=acc_cfg.get("imgsz", 960),
+    )
+    if not acc_cfg.get("enabled", True):
+        accessory_detector.available = False
+        logger.info("Accessory detection disabled via config (accessories.enabled).")
+
+    # Opt-in experimental fallback. Only ever used when no trained model
+    # loaded, and always recorded as zero-shot in the exported report.
+    if not accessory_detector.available:
+        from model_loader import load_zero_shot_detector
+        _zs = load_zero_shot_detector()
+        if _zs is not None:
+            accessory_detector = _zs
+            logger.warning(
+                "Using ZERO-SHOT accessory estimation. These are untrained "
+                "guesses, not measurements from a trained model."
+            )
+
+    # Startup diagnostic
+    from model_loader import log_status_banner, resolve_models
+    log_status_banner(
+        resolve_models(acc_cfg.get("model_path")),
+        person_loaded=True,
+        tracking_active=True,
     )
 
     # 2. Person Tracker (YOLOv8 + BotSORT)
@@ -145,11 +171,8 @@ def main(config_path: str = "config.yaml"):
                     if tid < 0:
                         continue
                     state_mgr.update_state(tid, t.get("accessories", []), frame_idx)
-                    state_mgr.apply_temporal_voting(
-                        tid,
-                        window=vote_window,
-                        threshold=vote_threshold,
-                    )
+                    # Thresholds come from voting_config.py
+                    state_mgr.apply_temporal_voting(tid, VOTING)
 
                 # Step 6: Update Line Counter (if enabled)
                 if line_counter:
@@ -189,14 +212,17 @@ def main(config_path: str = "config.yaml"):
     if line_counter:
         logger.info("Line Crossing: IN=%d  OUT=%d  TOTAL=%d", line_counter.count_in, line_counter.count_out, line_counter.total)
 
-    # Final Temporal Voting Summary
+    # Final Temporal Voting Summary (authoritative, full frame history)
+    state_mgr.finalize_accessories(VOTING)
+    logger.info("Accessory voting config:\n%s", VOTING.describe())
+    logger.info("Per-track voting breakdown:\n%s", state_mgr.format_observation_report(VOTING))
+
     vote_summary = state_mgr.accessory_summary()
     if vote_summary:
-        logger.info("Accessory Summary (Confirmed via %d-frame window @ %.0f%%):", vote_window, vote_threshold * 100)
         for tid, accs in sorted(vote_summary.items()):
             logger.info("  Student #%-3d : %s", tid, ", ".join(accs))
     else:
-        logger.info("Accessory Summary: No accessories confirmed above %.0f%% threshold across temporal window.", vote_threshold * 100)
+        logger.info("Accessory Summary: no accessory passed its ratio threshold.")
 
     # Step 10: Call counter.py and exporter.py to produce final reports
     acc_counter.compute(state_mgr)
@@ -204,6 +230,14 @@ def main(config_path: str = "config.yaml"):
         state_manager=state_mgr,
         line_counter=line_counter,
         acc_counter=acc_counter,
+        accessory_source=(
+            f"trained:{accessory_detector.model_path}"
+            if getattr(accessory_detector, "is_trained", True)
+            and accessory_detector.available
+            else "zero-shot:yolo-world (EXPERIMENTAL, untrained)"
+            if accessory_detector.available
+            else "none (accessory AI offline)"
+        ),
     )
     logger.info(
         "Final Aggregate Totals: Persons=%d | Caps=%d | Masks=%d | Glasses=%d | Headphones=%d",

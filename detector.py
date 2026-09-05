@@ -10,7 +10,9 @@ class PersonDetector:
         self.iou = iou_threshold
         self.person_class_id = person_class_id
         self.accessory_detector = accessory_detector
-        logger.info("PersonDetector loaded '%s'  mock_accessories=%s",
+        # Naming this "mock" was misleading: it only reports whether an
+        # accessory detector was attached, never that one was synthetic.
+        logger.info("PersonDetector loaded '%s'  accessory_detector_attached=%s",
                     model_path, accessory_detector is not None)
 
     def detect(self, frame, imgsz: int = 480):

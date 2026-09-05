@@ -8,12 +8,16 @@ video:
   output: "output_annotated.mp4"
   fps_override: null
 
-# -- Detection --
+# -- Person detection --
+# This is the PERSON model and nothing else. It is a pretrained COCO network,
+# so it can never supply cap/mask/glasses/headphones -- those come only from
+# the custom accessory model configured below. Person detection stays fully
+# operational whether or not that accessory model exists.
 detection:
-  model_path: "yolov8n.pt"
+  model_path: "yolov8n.pt"         # person_model
   confidence: 0.40
   iou_threshold: 0.50
-  person_class_id: 0
+  person_class_id: 0               # only the COCO 'person' class is tracked
 
 # -- Tracking --
 tracking:
@@ -46,14 +50,33 @@ export:
   final_report_csv:   "final_report.csv"
   final_report_json:  "final_report.json"
 
-# -- Accessories --
+# -- Accessory detection (cap / mask / glasses / headphones) --
+# Requires a CUSTOM trained model. If model_path is absent the accessory
+# cards report "offline" and every accessory count stays unavailable; no
+# accessory number is ever estimated, guessed, or fabricated.
 accessories:
-  model_path: "accessory_best.pt"  # trained YOLO model weights for cap/mask/glasses/headphones
-  confidence: 0.30                 # detection confidence threshold
+  enabled: true
+  model_path: "models/accessory_best.pt"
+  confidence: 0.35                 # detection confidence threshold
+  imgsz: 960                       # inference size; accessories are small
   iou_threshold: 0.50              # NMS IoU threshold
   head_fraction: 0.40              # upper fraction of person box used as head region
-  vote_window: 30                  # sliding-window size for temporal voting (frames)
-  vote_threshold: 0.60             # min positive rate to confirm an accessory
+  # Temporal voting thresholds are configured in voting_config.py
+
+  # -- Zero-shot fallback (used when models/accessory_best.pt is missing) --
+  # YOLO-World open-vocabulary detection. Real inference, not mock data, but
+  # NOT a model trained on this project's classes. The dashboard labels it
+  # ZERO-SHOT (EXPERIMENTAL) and never "ACCESSORY AI ACTIVE".
+  zero_shot:
+    enabled: true
+    model_path: "yolov8s-world.pt"
+    confidence: 0.18
+    imgsz: 960
+
+# -- Mock / sample detections --
+# Must stay false for real analysis. When false, no synthetic accessory
+# detection is generated anywhere in the pipeline.
+use_mock_accessories: false
 
 # -- Logging --
 logging:
