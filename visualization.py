@@ -108,13 +108,13 @@ class Visualizer:
 
         hud_items = []
         if totals:
-            hud_items.append((f"TARGETS: {totals.get('persons', 0)}", (0, 242, 254)))      # Cyan
+            hud_items.append((f"PERSONS: {totals.get('persons', 0)}", (0, 242, 254)))      # Cyan
             hud_items.append((f"CAPS: {totals.get('caps', 0)}", (3, 183, 255)))            # Amber
             hud_items.append((f"MASKS: {totals.get('masks', 0)}", (0, 133, 251)))          # Orange
             hud_items.append((f"GLASSES: {totals.get('glasses', 0)}", (255, 125, 199)))    # Purple
             hud_items.append((f"HEADPHONES: {totals.get('headphones', 0)}", (135, 255, 0))) # Green
         else:
-            hud_items.append(("A.E.G.I.S. VISION HUD // ACTIVE", (0, 242, 254)))
+            hud_items.append(("AVI VISION HUD // ACTIVE", (0, 242, 254)))
 
         curr_x = int(14 * scale)
         for text, color in hud_items:

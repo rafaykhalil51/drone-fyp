@@ -18,6 +18,10 @@ final_report.json
 *.png
 *.jpeg
 
+# Ship the AVI logo and interface reference with the app
+!static/branding/
+!static/branding/**
+
 # Temp scripts
 write_assoc.py
 rewrite_all.py

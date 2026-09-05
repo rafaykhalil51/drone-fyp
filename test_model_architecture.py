@@ -187,7 +187,7 @@ check_true("device is cuda or cpu", app_config.torch_device() in ("cuda", "cpu")
 # ── 11. status banner content ────────────────────────────────────────────
 print("\n--- status banner ---")
 banner = format_status_banner(res)
-for token in ("=== AEGIS AI STATUS ===", "Person model:", "Accessory model:",
+for token in ("=== AVI AI STATUS ===", "Person model:", "Accessory model:",
               "Tracking:", "Mock accessory detection:", "Accessory AI:"):
     check_true(f"banner contains {token!r}", token in banner)
 check_true("banner reports mock OFF", "OFF" in banner)

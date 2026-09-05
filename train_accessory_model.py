@@ -284,7 +284,7 @@ def train(args) -> int:
 
 def main() -> int:
     p = argparse.ArgumentParser(
-        description="Train the A.E.G.I.S. accessory model "
+        description="Train the Autonomous Vision Intelligence accessory model "
                     "(cap / mask / glasses / headphones).",
         formatter_class=argparse.ArgumentDefaultsHelpFormatter,
     )

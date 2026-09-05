@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# data.yaml - dataset definition for the A.E.G.I.S. accessory model
+# data.yaml - dataset definition for the AVI accessory model
 # ---------------------------------------------------------------------------
 # Used by train_accessory_model.py to train models/accessory_best.pt.
 #

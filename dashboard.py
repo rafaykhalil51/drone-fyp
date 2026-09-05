@@ -1,11 +1,13 @@
 """
 dashboard.py
 ------------
-Futuristic Sci-Fi / Cyberpunk HUD Video & Image Analytics Dashboard
+Autonomous Vision Intelligence (AVI) dashboard.
+Drone video & image analytics: person tracking plus accessory detection.
 Powered by Streamlit, YOLOv8, BotSORT & YOLO-World.
 """
 
 import os
+import base64
 import cv2
 import json
 import time
@@ -15,6 +17,14 @@ import numpy as np
 import plotly.graph_objects as go
 import streamlit as st
 from pathlib import Path
+
+LOGO_PATH = Path("static/branding/avi_logo.jpg")
+
+
+def _logo_data_uri() -> str:
+    if LOGO_PATH.exists():
+        return "data:image/jpeg;base64," + base64.b64encode(LOGO_PATH.read_bytes()).decode()
+    return ""
 
 # Pipeline Modules
 from video_source import VideoSource
@@ -123,10 +133,10 @@ def parse_frame_detections(result, require_track_id: bool = False):
 
 # ── PAGE CONFIG ──────────────────────────────────────────────────────────────
 st.set_page_config(
-    page_title="A.E.G.I.S. // Vision Intelligence",
-    page_icon="⚡",
+    page_title="Autonomous Vision Intelligence",
+    page_icon=str(LOGO_PATH) if LOGO_PATH.exists() else "👁️",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="expanded",
 )
 
 if "analysis" not in st.session_state:
@@ -150,100 +160,204 @@ def load_dual_models(person_path: str, accessory_path: str):
     accessory_model = load_accessory_detector(accessory_path)
     return person_model, accessory_model
 
-# ── FUTURISTIC CSS ───────────────────────────────────────────────────────────
+# ── AVI INTERFACE ────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;600;800;900&family=Rajdhani:wght@500;600;700&family=Inter:wght@300;400;600&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Rajdhani:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap');
 
     .stApp {
-        background-color: #060913;
-        background-image:
-            radial-gradient(at 0% 0%, rgba(0, 242, 254, 0.08) 0px, transparent 50%),
-            radial-gradient(at 100% 0%, rgba(157, 78, 221, 0.08) 0px, transparent 50%),
-            radial-gradient(at 50% 100%, rgba(0, 255, 135, 0.05) 0px, transparent 50%);
-        font-family: 'Rajdhani', sans-serif;
-        color: #e2e8f0;
+        background-color: #0b0d11;
+        font-family: 'Inter', sans-serif;
+        color: #e8e8ea;
     }
-    h1, h2, h3, h4, .orbitron {
-        font-family: 'Orbitron', sans-serif !important;
-        letter-spacing: 1.5px;
+    h1, h2, h3, h4 {
+        font-family: 'Rajdhani', sans-serif !important;
+        letter-spacing: 0.6px;
+        color: #f3f3f5 !important;
     }
+    [data-testid="stSidebar"] {
+        background: #050506 !important;
+        border-right: 1px solid #222226;
+        min-width: 240px !important;
+        width: 240px !important;
+    }
+    [data-testid="stSidebar"] * { color: #d7d7db; }
+    [data-testid="stHeader"] { background: transparent; }
+    footer { visibility: hidden; }
+    .stDeployButton { display: none; }
+
     .cyber-card {
-        background: rgba(13, 20, 36, 0.85);
-        backdrop-filter: blur(16px);
-        border: 1px solid rgba(0, 242, 254, 0.25);
-        border-radius: 14px;
+        background: #141416;
+        border: 1px solid #2a2a2e;
+        border-radius: 16px;
         padding: 18px;
-        box-shadow: 0 0 25px rgba(0, 242, 254, 0.06), inset 0 0 15px rgba(0, 242, 254, 0.02);
+        box-shadow: 0 10px 28px rgba(0, 0, 0, 0.35);
         margin-top: 10px;
     }
     .hud-metric {
-        background: rgba(15, 23, 42, 0.9);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 12px; padding: 14px;
-        transition: transform 0.2s ease, border-color 0.2s ease;
+        background: #141416;
+        border: 1px solid #2a2a2e;
+        border-radius: 14px;
+        padding: 14px 16px;
+        box-shadow: 0 8px 20px rgba(0, 0, 0, 0.28);
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
     }
-    .hud-metric:hover { transform: translateY(-2px); border-color: rgba(0, 242, 254, 0.4); }
-    .hud-metric-cyan   { border-top: 3px solid #00f2fe; }
-    .hud-metric-amber  { border-top: 3px solid #ffb703; }
-    .hud-metric-orange { border-top: 3px solid #fb8500; }
-    .hud-metric-purple { border-top: 3px solid #c77dff; }
-    .hud-metric-green  { border-top: 3px solid #00ff87; }
-    .hud-metric-slate  { border-top: 3px solid #64748b; }
-    .hud-val { font-family: 'Orbitron', sans-serif; font-size: 28px; font-weight: 800; line-height: 1.2; }
-    .hud-label { font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; color: #94a3b8; font-weight: 600; }
-    .hud-sub { font-size: 10px; color: #64748b; margin-top: 4px; }
+    .hud-metric:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(0, 0, 0, 0.4); }
+    .hud-metric-cyan   { border-top: 3px solid #c5c8ce; }
+    .hud-metric-amber  { border-top: 3px solid #ef4444; }
+    .hud-metric-orange { border-top: 3px solid #22c55e; }
+    .hud-metric-purple { border-top: 3px solid #eab308; }
+    .hud-metric-green  { border-top: 3px solid #a855f7; }
+    .hud-metric-slate  { border-top: 3px solid #6b6b73; }
+    .hud-val { font-family: 'Rajdhani', sans-serif; font-size: 30px; font-weight: 700; line-height: 1.15; color: #f3f3f5; }
+    .hud-label { font-size: 12px; letter-spacing: 0.4px; color: #9a9aa0; font-weight: 600; }
+    .hud-sub { font-size: 11px; color: #8a8a90; margin-top: 4px; font-weight: 600; }
 
     .stButton>button {
-        background: linear-gradient(135deg, #00f2fe 0%, #4facfe 50%, #6b21a8 100%) !important;
-        color: #ffffff !important;
-        font-family: 'Orbitron', sans-serif !important;
-        font-weight: 700 !important; letter-spacing: 1.2px !important;
-        border: none !important; border-radius: 10px !important;
-        box-shadow: 0 0 20px rgba(0, 242, 254, 0.3) !important;
-        transition: all 0.3s ease !important; padding: 10px 18px !important;
+        background: #1c1c1f !important;
+        color: #f3f3f5 !important;
+        font-family: 'Inter', sans-serif !important;
+        font-weight: 600 !important;
+        border: 1px solid #3a3a40 !important;
+        border-radius: 10px !important;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.28) !important;
+        padding: 10px 18px !important;
     }
-    .stButton>button:hover { box-shadow: 0 0 35px rgba(0, 242, 254, 0.6) !important; transform: scale(1.01) !important; }
+    .stButton>button:hover {
+        background: #26262b !important;
+        border-color: #8d8d96 !important;
+    }
 
     .telemetry-pill {
         display: inline-flex; align-items: center; gap: 6px;
-        padding: 6px 14px;
-        background: rgba(0, 242, 254, 0.08);
-        border: 1px solid rgba(0, 242, 254, 0.3);
+        padding: 6px 12px;
+        background: #1a1a1d;
+        border: 1px solid #3a3a40;
         border-radius: 999px; font-size: 11px;
-        font-family: 'Orbitron', monospace; color: #00f2fe;
+        font-weight: 600; color: #c5c8ce;
     }
     .pulse-dot {
-        width: 8px; height: 8px; background-color: #00ff87;
-        border-radius: 50%; box-shadow: 0 0 10px #00ff87;
+        width: 8px; height: 8px; background-color: #22c55e;
+        border-radius: 50%; box-shadow: 0 0 8px #22c55e;
         animation: pulse 1.5s infinite;
     }
     @keyframes pulse {
-        0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 135, 0.7); }
-        70%  { transform: scale(1);    box-shadow: 0 0 0 8px rgba(0, 255, 135, 0);  }
-        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 135, 0);  }
+        0%   { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.7); }
+        70%  { transform: scale(1);    box-shadow: 0 0 0 8px rgba(34, 197, 94, 0);  }
+        100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(34, 197, 94, 0);  }
     }
-    /* Tab Styling */
-    .stTabs [data-baseweb="tab-list"] {
-        gap: 12px;
-    }
+    .stTabs [data-baseweb="tab-list"] { gap: 8px; }
     .stTabs [data-baseweb="tab"] {
-        font-family: 'Orbitron', sans-serif !important;
+        font-family: 'Inter', sans-serif !important;
         font-size: 13px !important;
-        font-weight: 700 !important;
+        font-weight: 600 !important;
         border-radius: 8px !important;
-        padding: 10px 18px !important;
-        background: rgba(15, 23, 42, 0.6) !important;
-        border: 1px solid rgba(0, 242, 254, 0.2) !important;
-        color: #94a3b8 !important;
+        padding: 10px 16px !important;
+        background: #141416 !important;
+        border: 1px solid #2a2a2e !important;
+        color: #9a9aa0 !important;
     }
     .stTabs [aria-selected="true"] {
-        background: linear-gradient(135deg, rgba(0, 242, 254, 0.2), rgba(157, 78, 221, 0.2)) !important;
-        border-color: #00f2fe !important;
-        color: #00f2fe !important;
+        background: #1c1c1f !important;
+        border-color: #8d8d96 !important;
+        color: #f3f3f5 !important;
+    }
+    .avi-nav-item {
+        padding: 10px 14px;
+        border-radius: 10px;
+        color: #9a9aa0;
+        font-size: 14px;
+        font-weight: 600;
+        margin: 4px 0;
+    }
+    .avi-nav-item.active {
+        background: #1a1a1d;
+        color: #f3f3f5;
+        box-shadow: inset 3px 0 0 #c5c8ce;
+    }
+    .avi-section {
+        font-family: 'Rajdhani', sans-serif;
+        font-size: 18px;
+        font-weight: 700;
+        color: #f3f3f5;
+        margin: 4px 0 10px 0;
+    }
+    .avi-footer {
+        display: flex; justify-content: space-between; align-items: center;
+        margin-top: 28px; padding-top: 14px;
+        border-top: 1px solid #2a2a2e;
+        color: #8a8a90; font-size: 12px;
+    }
+    .avi-hero {
+        display: flex;
+        align-items: center;
+        gap: 28px;
+        padding: 18px 22px;
+        margin-bottom: 8px;
+        background: linear-gradient(105deg, #000000 0%, #101218 58%, #0b0d11 100%);
+        border: 1px solid #2a2a2e;
+        border-radius: 18px;
+        box-shadow: 0 0 0 1px rgba(197, 200, 206, 0.06), 0 18px 40px rgba(0, 0, 0, 0.45);
+    }
+    .avi-hero-logo {
+        flex: 0 0 320px;
+        background: #000;
+        border-radius: 16px;
+        padding: 8px;
+        box-shadow: 0 0 42px rgba(0, 210, 255, 0.22), inset 0 0 0 1px rgba(0, 210, 255, 0.28);
+    }
+    .avi-hero-logo img {
+        width: 100%;
+        height: auto;
+        display: block;
+        object-fit: contain;
+        border-radius: 10px;
+    }
+    .avi-side-logo {
+        background: #000;
+        border-radius: 14px;
+        padding: 6px;
+        margin-bottom: 10px;
+        box-shadow: 0 0 22px rgba(0, 210, 255, 0.14), inset 0 0 0 1px rgba(0, 210, 255, 0.16);
+    }
+    .avi-side-logo img {
+        width: 100%;
+        height: auto;
+        display: block;
+        object-fit: contain;
+        border-radius: 10px;
+    }
+    @media (max-width: 900px) {
+        .avi-hero { flex-wrap: wrap; }
+        .avi-hero-logo { flex: 1 1 100%; }
     }
 </style>
 """, unsafe_allow_html=True)
+
+_logo_uri = _logo_data_uri()
+with st.sidebar:
+    if _logo_uri:
+        st.markdown(
+            f'<div class="avi-side-logo"><img src="{_logo_uri}" alt="AVI logo" /></div>',
+            unsafe_allow_html=True,
+        )
+    st.markdown(
+        """
+        <div class="avi-nav-item active">Dashboard</div>
+        <div class="avi-nav-item">Analyse Video</div>
+        <div class="avi-nav-item">Live Feed</div>
+        <div class="avi-nav-item">Analytics</div>
+        <div class="avi-nav-item">Reports</div>
+        <div class="avi-nav-item">Settings</div>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.markdown(
+        '<div style="margin-top:36px;text-align:center;font-size:10px;'
+        'letter-spacing:1.6px;font-weight:700;color:#64748b;">'
+        'HIGHER PERSPECTIVE<br>SAFER TOMORROW</div>',
+        unsafe_allow_html=True,
+    )
 
 # ── HEADER ───────────────────────────────────────────────────────────────────
 header_ph = st.empty()
@@ -261,45 +375,56 @@ def render_header(
     Zero-shot gets its own amber pill: it is real inference from an untrained
     open-vocabulary model, so it must never read "ACCESSORY AI ACTIVE".
     """
+    if person_ai_active:
+        _ready = (
+            '<div class="telemetry-pill" style="color:#86efac;border-color:#14532d;background:#102016;">'
+            '<div class="pulse-dot"></div> System Ready</div>'
+        )
+    else:
+        _ready = (
+            '<div class="telemetry-pill" style="color:#fbbf24;border-color:#713f12;background:#1c1608;">'
+            'System Offline</div>'
+        )
+
     if accessory_ai_active:
         _pill = (
-            '<div class="telemetry-pill" style="color: #00ff87; '
-            'border-color: rgba(0, 255, 135, 0.4); background: rgba(0, 255, 135, 0.08);">'
-            '<div class="pulse-dot"></div> ACCESSORY AI ACTIVE</div>'
+            '<div class="telemetry-pill" style="color:#86efac;border-color:#14532d;background:#102016;">'
+            'ACCESSORY AI ACTIVE</div>'
         )
     elif zero_shot:
-        _person = "PERSON AI ACTIVE" if person_ai_active else "PERSON AI FAILED"
         _pill = (
-            f'<div class="telemetry-pill"><div class="pulse-dot"></div> {_person}</div>'
-            '<div class="telemetry-pill" style="color: #ffb703; '
-            'border-color: rgba(255, 183, 3, 0.45); background: rgba(255, 183, 3, 0.10);">'
+            '<div class="telemetry-pill" style="color:#fbbf24;border-color:#713f12;background:#1c1608;">'
             'ACCESSORY: ZERO-SHOT (EXPERIMENTAL)</div>'
         )
     else:
-        _person = "PERSON AI ACTIVE" if person_ai_active else "PERSON AI FAILED"
         _pill = (
-            f'<div class="telemetry-pill"><div class="pulse-dot"></div> {_person}</div>'
-            '<div class="telemetry-pill" style="color: #ffb703; '
-            'border-color: rgba(255, 183, 3, 0.35); background: rgba(255, 183, 3, 0.08);">'
+            '<div class="telemetry-pill" style="color:#fbbf24;border-color:#713f12;background:#1c1608;">'
             'ACCESSORY AI OFFLINE</div>'
         )
 
+    _mark = (
+        f'<div class="avi-hero-logo"><img src="{_logo_uri}" alt="Autonomous Vision Intelligence" /></div>'
+        if _logo_uri else ""
+    )
+
     header_ph.markdown(f"""
-<div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid rgba(0, 242, 254, 0.2); padding-bottom: 14px; margin-bottom: 18px;">
-    <div style="display: flex; align-items: center; gap: 14px;">
-        <div style="width: 46px; height: 46px; background: linear-gradient(135deg, #00f2fe, #9d4edd); border-radius: 12px; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 20px rgba(0, 242, 254, 0.4); font-size: 22px;">⚡</div>
-        <div>
-            <div style="font-family: 'Orbitron', sans-serif; font-size: 22px; font-weight: 900; background: linear-gradient(90deg, #ffffff, #00f2fe, #c77dff); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">
-                A.E.G.I.S. // VISION INTELLIGENCE
-            </div>
-            <div style="font-size: 12px; color: #94a3b8; letter-spacing: 1px;">
-                AUTONOMOUS MULTI-TARGET TRACKING &amp; CRANIAL/FACIAL ACCESSORY TELEMETRY
-            </div>
+<div class="avi-hero">
+    {_mark}
+    <div style="flex:1;min-width:240px;">
+        <div style="font-size:11px;letter-spacing:1.8px;font-weight:600;color:#8a8a90;margin-bottom:6px;">
+            DRONE BASED SURVEILLANCE &amp; ACCESSORY DETECTION
         </div>
-    </div>
-    <div style="display: flex; gap: 10px; align-items: center;">
-        {_pill}
-        <div class="telemetry-pill" style="color: #c77dff; border-color: rgba(199, 125, 255, 0.3); background: rgba(199, 125, 255, 0.08);">CORE: YOLOv8 + BotSORT</div>
+        <div style="font-family:'Rajdhani',sans-serif;font-size:30px;font-weight:700;color:#f3f3f5;line-height:1.12;">
+            AUTONOMOUS <span style="color:#d7d7db;">VISION</span> INTELLIGENCE
+        </div>
+        <div style="font-size:13px;color:#9a9aa0;margin-top:6px;">
+            See Beyond | Detect Smarter | Make a Safer Tomorrow
+        </div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:14px;">
+            {_ready}
+            {_pill}
+            <div class="telemetry-pill">YOLOv8 + BotSORT</div>
+        </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
@@ -327,32 +452,32 @@ metric_ph = [col.empty() for col in m_cols]
 
 def update_top_metrics(tp=0, tc=0, tm=0, tg=0, th=0, tn=0, accessory_model_active=False,
                        zero_shot=False):
-    pct = lambda v: f"{round((v/tp)*100)}%" if tp > 0 else "0%"
-    render_hud_card(metric_ph[0], "TARGETS",     tp, "👥", "Tracked Persons",       "hud-metric-cyan",   "#00f2fe")
+    pct = lambda v: f"{round((v/tp)*100)}% of persons" if tp > 0 else "0% of persons"
+    render_hud_card(metric_ph[0], "Persons Detected", tp, "👥", "Unique tracks", "hud-metric-cyan", "#e8e8ea")
 
     if accessory_model_active:
         # Zero-shot numbers are real inference but from an untrained model, so
         # every card says so rather than presenting them as measured counts.
         _tag = " (est.)" if zero_shot else ""
-        render_hud_card(metric_ph[1], "CRANIAL",     tc, "🧢", f"{pct(tc)} Caps{_tag}",       "hud-metric-amber",  "#ffb703")
-        render_hud_card(metric_ph[2], "RESPIRATORY", tm, "😷", f"{pct(tm)} Masks{_tag}",      "hud-metric-orange", "#fb8500")
-        render_hud_card(metric_ph[3], "OPTICAL",     tg, "👓", f"{pct(tg)} Glasses{_tag}",    "hud-metric-purple", "#c77dff")
-        render_hud_card(metric_ph[4], "ACOUSTIC",    th, "🎧", f"{pct(th)} Headphones{_tag}", "hud-metric-green",  "#00ff87")
+        render_hud_card(metric_ph[1], "Caps",        tc, "🧢", f"{pct(tc)}{_tag}", "hud-metric-amber",  "#ef4444")
+        render_hud_card(metric_ph[2], "Masks",       tm, "😷", f"{pct(tm)}{_tag}", "hud-metric-orange", "#22c55e")
+        render_hud_card(metric_ph[3], "Glasses",     tg, "👓", f"{pct(tg)}{_tag}", "hud-metric-purple", "#ca8a04")
+        render_hud_card(metric_ph[4], "Headphones",  th, "🎧", f"{pct(th)}{_tag}", "hud-metric-green",  "#a855f7")
     else:
         # Accessory AI offline: show a compact placeholder instead of pasting a
         # sentence into every card. The reason is stated once, above the cards.
         _dim = "#64748b"
         _off = OFFLINE_SUBLABEL
-        render_hud_card(metric_ph[1], "CRANIAL",     OFFLINE_VALUE, "🧢", _off, "hud-metric-amber",  _dim)
-        render_hud_card(metric_ph[2], "RESPIRATORY", OFFLINE_VALUE, "😷", _off, "hud-metric-orange", _dim)
-        render_hud_card(metric_ph[3], "OPTICAL",     OFFLINE_VALUE, "👓", _off, "hud-metric-purple", _dim)
-        render_hud_card(metric_ph[4], "ACOUSTIC",    OFFLINE_VALUE, "🎧", _off, "hud-metric-green",  _dim)
+        render_hud_card(metric_ph[1], "Caps",        OFFLINE_VALUE, "🧢", _off, "hud-metric-amber",  _dim)
+        render_hud_card(metric_ph[2], "Masks",       OFFLINE_VALUE, "😷", _off, "hud-metric-orange", _dim)
+        render_hud_card(metric_ph[3], "Glasses",     OFFLINE_VALUE, "👓", _off, "hud-metric-purple", _dim)
+        render_hud_card(metric_ph[4], "Headphones",  OFFLINE_VALUE, "🎧", _off, "hud-metric-green",  _dim)
 
     _plain_sub = (
-        f"{pct(tn)} No Gear{' (est.)' if zero_shot else ''}"
+        f"{pct(tn)}{' (est.)' if zero_shot else ''}"
         if accessory_model_active else "No detected accessories"
     )
-    render_hud_card(metric_ph[5], "PLAIN",       tn, "👤", _plain_sub, "hud-metric-slate",  "#94a3b8")
+    render_hud_card(metric_ph[5], "No Accessory", tn, "👤", _plain_sub, "hud-metric-slate", "#64748b")
 
 st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
 
@@ -360,28 +485,28 @@ st.markdown("<div style='margin-top: 14px;'></div>", unsafe_allow_html=True)
 left_col, right_col = st.columns([7, 5], gap="large")
 
 with left_col:
-    st.markdown("""<div style="font-family: 'Orbitron', sans-serif; font-size: 15px; font-weight: 700; color: #00f2fe; margin-bottom: 8px;">📹 SURVEILLANCE FEED // TACTICAL VIEWPORT</div>""", unsafe_allow_html=True)
+    st.markdown('<div class="avi-section">Processed Video</div>', unsafe_allow_html=True)
     viewport_box = st.empty()
     progress_box = st.empty()
     status_box   = st.empty()
 
     # Dedicated 2 Tabs: Upload Video (Default) vs Upload Photo
     st.markdown("<div class='cyber-card'>", unsafe_allow_html=True)
-    st.markdown("<div style='font-family: Orbitron; font-size: 14px; font-weight: 700; color: #00f2fe; margin-bottom: 10px;'>⚡ INPUT CONTROL BAY</div>", unsafe_allow_html=True)
+    st.markdown('<div class="avi-section">Upload Video</div>', unsafe_allow_html=True)
 
-    tab_video, tab_photo = st.tabs(["🎥 1. UPLOAD VIDEO", "📷 2. UPLOAD PHOTO"])
+    tab_video, tab_photo = st.tabs(["Upload Video", "Upload Photo"])
 
     with tab_video:
-        uploaded_video = st.file_uploader("Upload Video File (MP4, AVI, MOV, MKV, WEBM, M4V)", type=["mp4", "avi", "mov", "mkv", "webm", "m4v", "wmv", "flv"], key="video_uploader")
-        btn_sample_video = st.button("🎯 LOAD SAMPLE VIDEO (input.mp4)", key="btn_sample_video")
+        uploaded_video = st.file_uploader("Supported formats: MP4, AVI, MOV, MKV, WEBM, M4V (500MB limit recommended)", type=["mp4", "avi", "mov", "mkv", "webm", "m4v", "wmv", "flv"], key="video_uploader")
+        btn_sample_video = st.button("Load Sample Video (input.mp4)", key="btn_sample_video")
 
     with tab_photo:
-        uploaded_photo = st.file_uploader("Upload Image File (JPG, PNG, WEBP, BMP, TIFF)", type=["jpg", "jpeg", "png", "webp", "bmp", "tiff"], key="photo_uploader")
-        btn_sample_photo = st.button("🎯 LOAD SAMPLE PHOTO", key="btn_sample_photo")
+        uploaded_photo = st.file_uploader("Supported formats: JPG, PNG, WEBP, BMP, TIFF", type=["jpg", "jpeg", "png", "webp", "bmp", "tiff"], key="photo_uploader")
+        btn_sample_photo = st.button("Load Sample Photo", key="btn_sample_photo")
 
     c1, c2 = st.columns(2)
     with c1:
-        conf_thresh = st.slider("AI Confidence Gate", 0.10, 0.90, 0.25, 0.05, key="conf_slider")
+        conf_thresh = st.slider("Detection Confidence", 0.10, 0.90, 0.25, 0.05, key="conf_slider")
     with c2:
         model_path = st.text_input(
             "Accessory Model Weights",
@@ -395,7 +520,7 @@ with left_col:
         )
 
     # Optional: load a trained accessory model without touching config.yaml.
-    with st.expander("🧩 ACCESSORY MODEL SELECTION (OPTIONAL)", expanded=False):
+    with st.expander("Accessory model selection (optional)", expanded=False):
         st.caption(
             f"Leave empty to use `{DEFAULT_CUSTOM_PATH}` automatically. "
             "Person detection and tracking work regardless."
@@ -454,11 +579,11 @@ with left_col:
     st.markdown("</div>", unsafe_allow_html=True)
 
 with right_col:
-    st.markdown("""<div style="font-family: 'Orbitron', sans-serif; font-size: 15px; font-weight: 700; color: #c77dff; margin-bottom: 8px;">📊 RADAR TELEMETRY &amp; TARGET MATRIX</div>""", unsafe_allow_html=True)
+    st.markdown('<div class="avi-section">Accessory Distribution</div>', unsafe_allow_html=True)
     chart_container = st.empty()
-    st.markdown("<div style='font-family: Orbitron; font-size: 13px; font-weight: 700; color: #00ff87; margin: 12px 0 6px 0;'>🎯 ACTIVE TARGET REGISTER</div>", unsafe_allow_html=True)
+    st.markdown('<div class="avi-section">Detection Register</div>', unsafe_allow_html=True)
     table_container = st.empty()
-    st.markdown("<div style='font-family: Orbitron; font-size: 13px; font-weight: 700; color: #ffb703; margin: 14px 0 6px 0;'>💾 INTELLIGENCE DOSSIER EXPORT</div>", unsafe_allow_html=True)
+    st.markdown('<div class="avi-section">Export Results</div>', unsafe_allow_html=True)
     dc1, dc2 = st.columns(2)
     csv_ph  = dc1.empty()
     json_ph = dc2.empty()
@@ -473,9 +598,9 @@ def render_chart(tc=0, tm=0, tg=0, th=0, tn=0, accessory_model_active=False,
     if not accessory_model_active:
         # Person AI is up, accessory AI is not. Say exactly that instead of
         # implying COCO can supply the four accessory classes.
-        labels = ['Tracked Persons 👤']
+        labels = ['Tracked Persons']
         values = [max(tn, 1)]
-        colors = ['#64748b']
+        colors = ['#94a3b8']
         textinfo = 'label'
         center_text = 'ACCESSORY<br>AI OFFLINE'
     else:
@@ -483,16 +608,16 @@ def render_chart(tc=0, tm=0, tg=0, th=0, tn=0, accessory_model_active=False,
         if total == 0:
             labels = ['Awaiting Detection']
             values = [1]
-            colors = ['rgba(100, 116, 139, 0.4)']
+            colors = ['#cbd5e1']
             textinfo = 'label'
-            center_text = 'STANDBY<br>READY'
+            center_text = 'Ready'
         else:
             raw_cats = [
-                ('Caps 🧢', tc, '#ffb703'),
-                ('Masks 😷', tm, '#fb8500'),
-                ('Glasses 👓', tg, '#c77dff'),
-                ('Headphones 🎧', th, '#00ff87'),
-                ('Plain 👤', tn, '#64748b'),
+                ('Caps', tc, '#ef4444'),
+                ('Masks', tm, '#22c55e'),
+                ('Glasses', tg, '#eab308'),
+                ('Headphones', th, '#a855f7'),
+                ('No Accessory', tn, '#94a3b8'),
             ]
             active_cats = [c for c in raw_cats if c[1] > 0]
             if not active_cats:
@@ -502,23 +627,23 @@ def render_chart(tc=0, tm=0, tg=0, th=0, tn=0, accessory_model_active=False,
             colors = [c[2] for c in active_cats]
             textinfo = 'label+percent'
             center_text = (
-                f'{total}<br>GEAR (EST.)' if zero_shot else f'{total}<br>GEAR'
+                f'{total}<br>People (est.)' if zero_shot else f'{total}<br>People'
             )
 
     fig = go.Figure(data=[go.Pie(
         labels=labels,
         values=values,
         hole=.65,
-        marker=dict(colors=colors, line=dict(color='#060913', width=2)),
+        marker=dict(colors=colors, line=dict(color='#141416', width=2)),
         textinfo=textinfo,
         hoverinfo='label+value',
-        textfont=dict(family='Orbitron', size=11, color='#ffffff')
+        textfont=dict(family='Inter', size=11, color='#d7d7db')
     )])
     fig.update_layout(
-        paper_bgcolor='rgba(13, 20, 36, 0.7)',
+        paper_bgcolor='#141416',
         plot_bgcolor='rgba(0,0,0,0)',
         margin=dict(t=15, b=15, l=15, r=15),
-        height=220,
+        height=240,
         showlegend=True,
         legend=dict(
             orientation="h",
@@ -526,10 +651,10 @@ def render_chart(tc=0, tm=0, tg=0, th=0, tn=0, accessory_model_active=False,
             y=-0.2,
             xanchor="center",
             x=0.5,
-            font=dict(family='Rajdhani', size=11, color='#cbd5e1')
+            font=dict(family='Inter', size=11, color='#9a9aa0')
         ),
         annotations=[dict(text=center_text, x=0.5, y=0.5,
-                          font=dict(family='Orbitron', size=11, color='#00f2fe'), showarrow=False)]
+                          font=dict(family='Rajdhani', size=13, color='#f3f3f5'), showarrow=False)]
     )
     chart_container.plotly_chart(fig, key=f"gear_chart_{_chart_count}")
 
@@ -548,11 +673,11 @@ def build_table_rows(state_mgr):
         hits = s.hit_counts()
         ratios = s.ratios()
         rows.append({
-            "Target ID":      f"TRK-{tid:03d}",
-            "Inception":      f"F:{s.first_frame:03d}",
-            "Latest":         f"F:{s.last_frame:03d}",
+            "Person ID":      f"ID-{tid:03d}",
+            "First Frame":    f"F:{s.first_frame:03d}",
+            "Last Frame":     f"F:{s.last_frame:03d}",
             "Frames Seen":    s.frames_seen,
-            "Gear Verified":  ", ".join(accs) if accs else "None",
+            "Accessories":    ", ".join(accs) if accs else "None",
             "Cap Hits":       hits["cap"],
             "Cap Ratio":      round(ratios["cap"], 2),
             "Mask Hits":      hits["mask"],
@@ -561,7 +686,7 @@ def build_table_rows(state_mgr):
             "Glasses Ratio":  round(ratios["glasses"], 2),
             "Headphone Hits": hits["headphones"],
             "Headphone Ratio": round(ratios["headphones"], 2),
-            "Classification": "SECURED // ACTIVE" if accs else "STANDARD TARGET",
+            "Classification": "Confirmed" if accs else "No accessory",
         })
     return rows
 
@@ -626,9 +751,9 @@ def render_saved_analysis():
             table_container.dataframe(class_df, width="stretch", hide_index=True)
 
         summary_lines = "<br>".join(
-            f"<span style='color:#00f2fe;font-family:Orbitron,monospace;'>"
+            f"<span style='color:#c5c8ce;font-weight:600;'>"
             f"{_format_class_name(name)}:</span> "
-            f"<span style='color:#e2e8f0;'>{count}</span>"
+            f"<span style='color:#f3f3f5;'>{count}</span>"
             for name, count in sorted(class_counts.items(), key=lambda x: (-x[1], x[0]))
         )
         if not acc_active:
@@ -637,12 +762,11 @@ def render_saved_analysis():
                 "Cap / Mask / Glasses / Headphones: accessory AI offline</span>"
             )
         status_box.markdown(f"""
-        <div class="telemetry-pill" style="color: #00ff87; border-color: #00ff87; font-size: 12px; margin-bottom: 10px;">
-            ⚡ ANALYSIS COMPLETE // {person_total} unique person(s) tracked
+        <div class="telemetry-pill" style="margin-bottom: 10px;">
+            Analysis complete — {person_total} unique person(s) tracked
         </div>
-        <div class="cyber-card" style="font-family: Rajdhani, sans-serif; font-size: 14px; line-height: 1.8;">
-            <div style="font-family: Orbitron, sans-serif; font-size: 13px; font-weight: 700;
-                        color: #c77dff; margin-bottom: 8px;">📋 DETECTION SUMMARY</div>
+        <div class="cyber-card" style="font-size: 14px; line-height: 1.8;">
+            <div class="avi-section" style="margin-bottom:8px;">Detection Summary</div>
             {summary_lines}
         </div>
         """, unsafe_allow_html=True)
@@ -879,7 +1003,7 @@ render_header(
     zero_shot=zero_shot_active,
 )
 
-with st.expander("🧠 NEURAL MODEL MANIFEST", expanded=True):
+with st.expander("Model status", expanded=True):
     st.code(format_model_report(model_resolution), language="text")
     st.code(
         format_status_banner(
@@ -1408,7 +1532,7 @@ elif not should_process and st.session_state.analysis is None:
 # ── TRACKING DIAGNOSTICS ─────────────────────────────────────────────────────
 _dbg = st.session_state.get("track_debug")
 if _dbg:
-    with st.expander("🛰️ TRACKING DIAGNOSTICS", expanded=False):
+    with st.expander("Tracking diagnostics", expanded=False):
         st.code(
             f"Raw track IDs created:     {_dbg['raw_track_ids_created']}\n"
             f"Confirmed track IDs:       {_dbg['confirmed_track_ids']}\n"
@@ -1425,7 +1549,7 @@ if _dbg:
 
 _obs = st.session_state.get("observation_report")
 if _obs:
-    with st.expander("👓 ACCESSORY TEMPORAL VOTING", expanded=False):
+    with st.expander("Accessory temporal voting", expanded=False):
         st.code(VOTING.describe(), language="text")
         st.caption("Thresholds are configured in `voting_config.py`.")
         st.code(_obs, language="text")
@@ -1443,12 +1567,12 @@ _has_analysis = st.session_state.get("analysis") is not None
 
 if _has_analysis and os.path.exists("final_report.csv"):
     with open("final_report.csv", "r") as f:
-        csv_ph.download_button("📥 EXPORT CSV DOSSIER", data=f.read(),
+        csv_ph.download_button("Export CSV", data=f.read(),
                                file_name="final_report.csv", mime="text/csv", key="dl_csv")
 
 if _has_analysis and os.path.exists("final_report.json"):
     with open("final_report.json", "r") as f:
-        json_ph.download_button("📥 EXPORT JSON TELEMETRY", data=f.read(),
+        json_ph.download_button("Export JSON", data=f.read(),
                                 file_name="final_report.json", mime="application/json", key="dl_json")
 
 # Offer exactly the file the viewport is playing. Keying off a fixed filename
@@ -1461,9 +1585,19 @@ if _has_analysis and input_mode == "video" and _dl_video and os.path.exists(_dl_
     _dl_ext = Path(_dl_video).suffix.lower() or ".mp4"
     with open(_dl_video, "rb") as vf:
         video_dl_ph.download_button(
-            "📹 DOWNLOAD ANNOTATED VIDEO (1.0x NORMAL SPEED)",
+            "Download Annotated Video",
             data=vf.read(),
             file_name=f"annotated_video_1x{_dl_ext}",
             mime="video/mp4" if _dl_ext == ".mp4" else "video/x-msvideo",
             key="dl_vid"
         )
+
+st.markdown(
+    """
+    <div class="avi-footer">
+        <span>Autonomous Vision Intelligence | Final Year Project</span>
+        <span>Built for a Safer, Smarter World</span>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)

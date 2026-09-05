@@ -669,7 +669,7 @@ def format_status_banner(
     )
 
     return "\n".join([
-        "=== AEGIS AI STATUS ===",
+        "=== AVI AI STATUS ===",
         "",
         "Person model:",
         f"  {'LOADED' if person_loaded else 'FAILED'}",

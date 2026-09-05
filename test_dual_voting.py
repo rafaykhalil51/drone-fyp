@@ -75,15 +75,15 @@ _fn = next(
 _ns: dict = {}
 exec(compile(ast.Module(body=[_fn], type_ignores=[]), "<rows>", "exec"), _ns)
 rows = _ns["build_table_rows"](sm)
-r1 = next(r for r in rows if r["Target ID"] == "TRK-001")
+r1 = next(r for r in rows if r["Person ID"] == "ID-001")
 check("row frames seen", r1["Frames Seen"], 60)
 check("row cap hits", r1["Cap Hits"], 40)
 check("row cap ratio", r1["Cap Ratio"], 0.67)
-_gear = r1["Gear Verified"]
+_gear = r1["Accessories"]
 check("row gear lists Cap", "Cap" in _gear, True)
 check("row gear lists Glasses", "Glasses" in _gear, True)
 check("row gear omits Mask", "Mask" in _gear, False)
-check("row 2 gear is None", next(r for r in rows if r["Target ID"] == "TRK-002")["Gear Verified"], "None")
+check("row 2 gear is None", next(r for r in rows if r["Person ID"] == "ID-002")["Accessories"], "None")
 
 print()
 print(sm.format_observation_report(VOTING))
