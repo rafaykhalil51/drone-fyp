@@ -1,12 +1,44 @@
-# Python venv
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+.cache/
+
+# Virtual environments (never deploy these)
+.venv/
 venv/
+env/
 
-# YOLO model weights
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+
+# Temporary / logs
+tmp/
+temp/
+*.tmp
+*.log
+_probe/
+
+# YOLO model weights (Ultralytics can download official .pt files;
+# trained accessory weights stay local unless you force-add them)
 *.pt
+*.onnx
+*.engine
 
-# Generated outputs (keep source code only)
+# Generated outputs (recreated at runtime)
 output_annotated.mp4
 output_raw.mp4
+output_raw.avi
 *.mp4
 *.avi
 *.mov
@@ -22,21 +54,21 @@ final_report.json
 !static/branding/
 !static/branding/**
 
+# Dataset images and Ultralytics label caches (labels/*.txt stay tracked)
+dataset/images/
+dataset/labels/*.cache
+
+# Training drop-folder and YOLO run artifacts
+training_photos/
+runs/
+outputs/
+logs/
+
 # Temp scripts
 write_assoc.py
 rewrite_all.py
 fix_assoc.py
 patch_*.py
 
-# YOLO run artifacts
-runs/
-
 # Python cache
-__pycache__/
-*.pyc
-*.pyo
 .pytest_cache/
-
-# OS
-.DS_Store
-Thumbs.db
