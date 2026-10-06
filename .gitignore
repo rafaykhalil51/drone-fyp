@@ -54,6 +54,16 @@ final_report.json
 !static/branding/
 !static/branding/**
 
+# Next.js frontend is deployed on its own. Keep installs, builds, and local env out of git.
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+frontend/.env*.local
+
+# The dashboard logo is a jpg, so it must stay tracked despite *.jpg above.
+!frontend/public/branding/
+!frontend/public/branding/**
+
 # Dataset images and Ultralytics label caches (labels/*.txt stay tracked)
 dataset/images/
 dataset/labels/*.cache
