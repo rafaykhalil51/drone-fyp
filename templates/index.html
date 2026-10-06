@@ -160,18 +160,38 @@
               <span class="font-semibold text-sm text-slate-200">Visual Detection Feed</span>
             </div>
             <div class="flex items-center space-x-2 text-xs">
-              <span class="px-2.5 py-1 rounded bg-slate-800 text-slate-300 font-mono" id="feed-label">Sample Ready</span>
-              <span class="px-2.5 py-1 rounded bg-indigo-500/20 text-indigo-300 font-mono" id="mode-label">Real AI (YOLO-World)</span>
+              <span class="px-2.5 py-1 rounded bg-slate-800 text-slate-300 font-mono max-w-[220px] truncate" id="feed-label">Waiting for input</span>
+              <span class="px-2.5 py-1 rounded bg-indigo-500/20 text-indigo-300 font-mono" id="mode-label">{{ engine_label }}</span>
             </div>
           </div>
 
           <!-- Video / Image Container -->
           <div class="relative bg-slate-900 rounded-xl overflow-hidden min-h-[380px] max-h-[480px] flex items-center justify-center border border-slate-800/80">
-            <img id="media-display" src="/uploads/classroom_sample.jpg" alt="Detection Feed" class="w-full h-auto object-contain max-h-[460px]" />
+            <div id="feed-placeholder" class="flex flex-col items-center justify-center text-slate-500 text-sm gap-2 p-6 text-center">
+              <i class="fa-solid fa-film text-3xl"></i>
+              <span>Upload a photo or video, then click <b class="text-slate-300">Run Detection Pipeline</b>.</span>
+            </div>
+            <img id="media-display" alt="Detection Feed" class="hidden w-full h-auto object-contain max-h-[460px]" />
+            <video id="video-display" class="hidden w-full h-auto object-contain max-h-[460px] bg-slate-950" controls playsinline muted></video>
+
+            <!-- live progress overlay (video jobs) -->
+            <div id="live-bar" class="hidden absolute left-0 right-0 bottom-0 z-10 bg-slate-950/80 backdrop-blur px-3 py-2">
+              <div class="flex items-center justify-between text-[11px] text-slate-300 mb-1">
+                <span id="live-text" class="font-mono truncate">Starting...</span>
+                <span id="live-pct" class="font-mono text-indigo-300">0%</span>
+              </div>
+              <div class="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                <div id="live-progress" class="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-300" style="width:0%"></div>
+              </div>
+            </div>
+
             <div id="spinner" class="hidden absolute inset-0 bg-slate-950/70 backdrop-blur-sm flex flex-col items-center justify-center z-20">
               <div class="w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin"></div>
-              <p class="mt-3 text-sm font-medium text-indigo-300" id="spinnerText">Running Multi-Student AI Model...</p>
+              <p class="mt-3 text-sm font-medium text-indigo-300 text-center px-6" id="spinnerText">Running detection...</p>
             </div>
+          </div>
+          <div id="download-row" class="hidden text-xs text-right">
+            <a id="download-video" href="#" download class="text-indigo-300 hover:text-indigo-200"><i class="fa-solid fa-download"></i> Download annotated video</a>
           </div>
 
           <!-- Color Legend -->
@@ -205,18 +225,22 @@
             <div>
               <label class="block text-xs font-medium text-slate-400 mb-1.5">Detector Engine</label>
               <select id="detector-mode" class="w-full bg-slate-900 border border-slate-800 rounded-lg px-3 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500">
-                <option value="real" selected>Real AI (YOLOv8 + YOLO-World)</option>
+                <option value="real" selected>Real AI (YOLOv8 + {{ engine_label }})</option>
+                {% if mock_enabled %}
                 <option value="mock">Mock Accessory Simulator (Seed-based)</option>
+                {% endif %}
               </select>
             </div>
           </div>
 
           <!-- Buttons -->
           <div class="flex items-center justify-between pt-1 gap-3">
-            <button onclick="loadSampleClassroom()" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition flex items-center justify-center gap-2">
+            {% if sample_available %}
+            <button id="btn-sample" onclick="loadSampleClassroom()" class="flex-1 py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold border border-slate-700 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
               <i class="fa-solid fa-image text-indigo-400"></i> Analyze Sample Classroom Photo
             </button>
-            <button onclick="processUpload()" class="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2">
+            {% endif %}
+            <button id="btn-run" onclick="processUpload()" class="flex-1 py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-semibold shadow-lg shadow-indigo-600/30 transition flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed">
               <i class="fa-solid fa-bolt"></i> Run Detection Pipeline
             </button>
           </div>
@@ -263,7 +287,7 @@
                 <tr>
                   <td colspan="3" class="py-8 text-center text-slate-500">
                     <i class="fa-solid fa-inbox text-2xl mb-1 block"></i>
-                    No analysis run yet. Click "Analyze Sample Classroom Photo" above.
+                    No analysis run yet. Upload a photo or video to begin.
                   </td>
                 </tr>
               </tbody>
@@ -321,8 +345,129 @@
       });
     }
 
+    const $ = (id) => document.getElementById(id);
+    const VIDEO_RE = /\.(mp4|avi|mov|mkv|webm|m4v|wmv|flv)$/i;
+    let busy = false;
+    let pollTimer = null;
+
+    function escapeHtml(s) {
+      return String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    function setBusy(state) {
+      busy = state;
+      ['btn-run', 'btn-sample', 'file-input', 'detector-mode'].forEach(id => {
+        const el = $(id);
+        if (el) el.disabled = state;
+      });
+    }
+
+    function showSpinner(text) {
+      $('spinnerText').innerText = text;
+      $('spinner').classList.remove('hidden');
+    }
+
+    function hideSpinner() {
+      $('spinner').classList.add('hidden');
+    }
+
+    function showError(msg) {
+      hideSpinner();
+      $('live-bar').classList.add('hidden');
+      alert('Error: ' + msg);
+    }
+
+    function showImage(url) {
+      const img = $('media-display');
+      const video = $('video-display');
+      video.pause();
+      video.removeAttribute('src');
+      video.load();
+      video.classList.add('hidden');
+      $('feed-placeholder').classList.add('hidden');
+      img.classList.remove('hidden');
+      img.src = url;
+    }
+
+    function showVideo(url, posterUrl) {
+      const img = $('media-display');
+      const video = $('video-display');
+      $('feed-placeholder').classList.add('hidden');
+      video.onerror = () => {
+        // Codec not playable in this browser: keep the last annotated frame visible.
+        video.classList.add('hidden');
+        if (posterUrl) showImage(posterUrl + '?t=' + Date.now());
+      };
+      video.poster = posterUrl ? posterUrl + '?t=' + Date.now() : '';
+      video.src = url + '?t=' + Date.now();
+      img.classList.add('hidden');
+      video.classList.remove('hidden');
+      video.load();
+      video.play().catch(() => {});
+      $('download-video').href = url;
+      $('download-row').classList.remove('hidden');
+    }
+
+    function updateStats(total, cap, mask, glasses, headphones, none) {
+      $('stat-total').innerText = total;
+      $('stat-cap').innerText = cap;
+      $('stat-mask').innerText = mask;
+      $('stat-glasses').innerText = glasses;
+      $('stat-headphones').innerText = headphones;
+      $('stat-none').innerText = none;
+
+      const pct = (val) => total > 0 ? Math.round((val / total) * 100) + '%' : '0%';
+      $('stat-cap-pct').innerText = `${pct(cap)} of students`;
+      $('stat-mask-pct').innerText = `${pct(mask)} of students`;
+      $('stat-glasses-pct').innerText = `${pct(glasses)} of students`;
+      $('stat-headphones-pct').innerText = `${pct(headphones)} of students`;
+      $('stat-none-pct').innerText = `${pct(none)} no accessories`;
+    }
+
+    function updateLiveStats(live) {
+      const total = live.persons || 0;
+      const cap = live.caps || 0, mask = live.masks || 0, glasses = live.glasses || 0, headphones = live.headphones || 0;
+      updateStats(total, cap, mask, glasses, headphones, live.none || 0);
+    }
+
+    function renderTable(tracks) {
+      const tbody = $('student-table-body');
+      tbody.innerHTML = '';
+      $('table-count').innerText = `${tracks.length} students`;
+
+      if (tracks.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="3" class="py-8 text-center text-slate-500">No students detected.</td></tr>`;
+        return;
+      }
+
+      const badge = (cls, text) =>
+        `<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium ${cls}">${text}</span>`;
+
+      tracks.forEach(t => {
+        const badges = [];
+        if (t.cap) badges.push(badge('bg-amber-500/10 text-amber-300 border border-amber-500/20', '🧢 Cap'));
+        if (t.mask) badges.push(badge('bg-orange-500/10 text-orange-300 border border-orange-500/20', '😷 Mask'));
+        if (t.glasses) badges.push(badge('bg-purple-500/10 text-purple-300 border border-purple-500/20', '👓 Glasses'));
+        if (t.headphones) badges.push(badge('bg-emerald-500/10 text-emerald-300 border border-emerald-500/20', '🎧 Headphones'));
+
+        const badgeHtml = badges.length > 0 ? badges.join(' ') : `<span class="text-slate-500 italic text-[11px]">None</span>`;
+        const scoreStr = (typeof t.confidence === 'number') ? Math.round(t.confidence * 100) + '%' : '—';
+        const id = escapeHtml(t.track_id);
+
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-slate-800/40 transition';
+        row.innerHTML = `
+          <td class="py-2.5 px-2.5 font-medium flex items-center gap-2">
+            <div class="w-7 h-7 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center font-bold text-xs border border-indigo-500/20">#${id}</div>
+            <span>Student ${id}</span>
+          </td>
+          <td class="py-2.5 px-2.5">${badgeHtml}</td>
+          <td class="py-2.5 px-2.5 text-right font-mono text-slate-400">${scoreStr}</td>`;
+        tbody.appendChild(row);
+      });
+    }
+
     function updateDashboard(resp) {
-      // 1. Update stats cards
       const agg = resp.aggregate || {};
       const total = agg.total_unique_persons || 0;
       const cap = agg.total_cap || 0;
@@ -331,125 +476,153 @@
       const headphones = agg.total_headphones || 0;
       const none = agg.total_none || 0;
 
-      document.getElementById('stat-total').innerText = total;
-      document.getElementById('stat-cap').innerText = cap;
-      document.getElementById('stat-mask').innerText = mask;
-      document.getElementById('stat-glasses').innerText = glasses;
-      document.getElementById('stat-headphones').innerText = headphones;
-      document.getElementById('stat-none').innerText = none;
-
-      const pct = (val) => total > 0 ? Math.round((val / total) * 100) + '%' : '0%';
-      document.getElementById('stat-cap-pct').innerText = ${pct(cap)} of students;
-      document.getElementById('stat-mask-pct').innerText = ${pct(mask)} of students;
-      document.getElementById('stat-glasses-pct').innerText = ${pct(glasses)} of students;
-      document.getElementById('stat-headphones-pct').innerText = ${pct(headphones)} of students;
-      document.getElementById('stat-none-pct').innerText = ${pct(none)} no accessories;
-
-      // 2. Update Donut Chart
+      updateStats(total, cap, mask, glasses, headphones, none);
       initChart({ cap, mask, glasses, headphones, none });
+      renderTable(resp.tracks || []);
+      if (resp.engine) $('mode-label').innerText = resp.engine;
 
-      // 3. Update Table
-      const tbody = document.getElementById('student-table-body');
-      tbody.innerHTML = '';
-      const tracks = resp.tracks || [];
-      document.getElementById('table-count').innerText = ${tracks.length} students;
-
-      if (tracks.length === 0) {
-        tbody.innerHTML = <tr><td colspan="3" class="py-8 text-center text-slate-500">No students detected.</td></tr>;
-        return;
+      if (resp.video_url) {
+        showVideo(resp.video_url, resp.image_url);
+      } else if (resp.image_url) {
+        $('download-row').classList.add('hidden');
+        showImage(resp.image_url + '?t=' + Date.now());
       }
+    }
 
-      tracks.forEach(t => {
-        const badges = [];
-        if (t.cap) badges.push(<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-amber-500/10 text-amber-300 border border-amber-500/20">🧢 Cap</span>);
-        if (t.mask) badges.push(<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-orange-500/10 text-orange-300 border border-orange-500/20">😷 Mask</span>);
-        if (t.glasses) badges.push(<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-purple-500/10 text-purple-300 border border-purple-500/20">👓 Glasses</span>);
-        if (t.headphones) badges.push(<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-medium bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">🎧 Headphones</span>);
-
-        const badgeHtml = badges.length > 0 ? badges.join(' ') : <span class="text-slate-500 italic text-[11px]">None</span>;
-        const confStr = t.confidence ? Math.round(t.confidence * 100) + '%' : '92%';
-
-        const row = document.createElement('tr');
-        row.className = 'hover:bg-slate-800/40 transition';
-        row.innerHTML = 
-          <td class="py-2.5 px-2.5 font-medium flex items-center gap-2">
-            <div class="w-7 h-7 rounded-lg bg-indigo-600/20 text-indigo-400 flex items-center justify-center font-bold text-xs border border-indigo-500/20">
-              #
-            </div>
-            <span>Student </span>
-          </td>
-          <td class="py-2.5 px-2.5"></td>
-          <td class="py-2.5 px-2.5 text-right font-mono text-slate-400"></td>
-        ;
-        tbody.appendChild(row);
-      });
-
-      // 4. Update image display
-      if (resp.image_url) {
-        document.getElementById('media-display').src = resp.image_url + '?t=' + new Date().getTime();
+    async function readJson(res) {
+      try {
+        return await res.json();
+      } catch (e) {
+        return { error: `Server returned ${res.status} ${res.statusText}` };
       }
     }
 
     async function loadSampleClassroom() {
-      const mode = document.getElementById('detector-mode').value;
-      const spinner = document.getElementById('spinner');
-      spinner.classList.remove('hidden');
-      document.getElementById('spinnerText').innerText = 'Running Detection on Sample Classroom...';
-
+      if (busy) return;
+      const mode = $('detector-mode').value;
+      setBusy(true);
+      showSpinner('Running detection on the sample classroom photo...');
       try {
-        const res = await fetch(/api/analyze/sample?mode=);
-        const data = await res.json();
+        const res = await fetch(`/api/analyze/sample?mode=${encodeURIComponent(mode)}`);
+        const data = await readJson(res);
+        if (!res.ok || data.error) {
+          showError(data.error || 'Sample analysis failed');
+          return;
+        }
         updateDashboard(data);
-        document.getElementById('feed-label').innerText = 'Classroom Sample Analyzed';
+        $('feed-label').innerText = 'Classroom sample';
       } catch (err) {
-        alert('Failed to analyze sample: ' + err);
+        showError('Failed to analyze sample: ' + err);
       } finally {
-        spinner.classList.add('hidden');
+        hideSpinner();
+        setBusy(false);
       }
     }
 
+    function stopPolling() {
+      if (pollTimer) clearTimeout(pollTimer);
+      pollTimer = null;
+    }
+
+    function pollJob(jobId) {
+      let lastSeq = -1;
+      const tick = async () => {
+        try {
+          const res = await fetch(`/api/jobs/${jobId}`, { cache: 'no-store' });
+          const job = await readJson(res);
+          if (!res.ok || job.error && job.status !== 'error') {
+            stopPolling();
+            setBusy(false);
+            showError(job.error || 'Lost track of the processing job.');
+            return;
+          }
+
+          const pct = Math.round((job.progress || 0) * 100);
+          $('live-text').innerText = job.message || '';
+          $('live-pct').innerText = pct + '%';
+          $('live-progress').style.width = pct + '%';
+          if (job.live) updateLiveStats(job.live);
+
+          if (job.frame_seq > 0 && job.frame_seq !== lastSeq) {
+            lastSeq = job.frame_seq;
+            hideSpinner();
+            showImage(`/api/jobs/${jobId}/frame?seq=${job.frame_seq}`);
+          }
+
+          if (job.status === 'done') {
+            stopPolling();
+            $('live-bar').classList.add('hidden');
+            hideSpinner();
+            updateDashboard(job.result);
+            setBusy(false);
+            return;
+          }
+          if (job.status === 'error') {
+            stopPolling();
+            setBusy(false);
+            showError(job.error || 'Video processing failed.');
+            return;
+          }
+        } catch (err) {
+          // Transient network hiccup: keep polling.
+        }
+        pollTimer = setTimeout(tick, 600);
+      };
+      tick();
+    }
+
     async function processUpload() {
-      const fileInput = document.getElementById('file-input');
-      const mode = document.getElementById('detector-mode').value;
+      if (busy) return;
+      const fileInput = $('file-input');
+      const mode = $('detector-mode').value;
 
       if (!fileInput.files || fileInput.files.length === 0) {
-        // If no file selected, run on current sample
-        loadSampleClassroom();
+        alert('Choose a photo or video first.');
         return;
       }
 
       const file = fileInput.files[0];
+      const isVideo = (file.type || '').startsWith('video/') || VIDEO_RE.test(file.name);
       const formData = new FormData();
       formData.append('file', file);
       formData.append('mode', mode);
 
-      const spinner = document.getElementById('spinner');
-      spinner.classList.remove('hidden');
-      document.getElementById('spinnerText').innerText = Analyzing ...;
+      stopPolling();
+      setBusy(true);
+      $('feed-label').innerText = file.name;
+      $('download-row').classList.add('hidden');
+      showSpinner(isVideo ? `Uploading ${file.name}...` : `Analyzing ${file.name}...`);
 
       try {
-        const res = await fetch('/api/analyze/upload', {
-          method: 'POST',
-          body: formData
-        });
-        const data = await res.json();
-        if (data.error) {
-          alert('Error: ' + data.error);
-        } else {
-          updateDashboard(data);
-          document.getElementById('feed-label').innerText = file.name;
+        const res = await fetch('/api/analyze/upload', { method: 'POST', body: formData });
+        const data = await readJson(res);
+        if (!res.ok || data.error) {
+          setBusy(false);
+          showError(data.error || 'Upload failed');
+          return;
         }
+
+        if (data.job_id) {
+          showSpinner('Video uploaded. Loading detectors...');
+          $('live-text').innerText = 'Starting...';
+          $('live-pct').innerText = '0%';
+          $('live-progress').style.width = '0%';
+          $('live-bar').classList.remove('hidden');
+          pollJob(data.job_id);
+          return;
+        }
+
+        hideSpinner();
+        updateDashboard(data);
+        setBusy(false);
       } catch (err) {
-        alert('Upload/processing failed: ' + err);
-      } finally {
-        spinner.classList.add('hidden');
+        setBusy(false);
+        showError('Upload/processing failed: ' + err);
       }
     }
 
-    // Auto-run sample on page load
     window.addEventListener('DOMContentLoaded', () => {
       initChart();
-      loadSampleClassroom();
     });
   </script>
 </body>

@@ -29,6 +29,7 @@ def _logo_data_uri() -> str:
 # Pipeline Modules
 from video_source import VideoSource
 from association import associate_accessories_to_tracks
+from accessory_crops import detect_on_head_crops, translate_accessories
 from state_manager import StateManager
 from counter import AccessoryCounter
 from visualization import Visualizer
@@ -66,6 +67,8 @@ OFFLINE_SUBLABEL = "Model offline"
 # Minimum detection confidence for person tracking, independent of the UI
 # slider, so weak boxes cannot create throwaway BoT-SORT track IDs.
 PERSON_TRACK_MIN_CONF = 0.35
+# Run the (slow) accessory model on every Nth video frame.
+ACCESSORY_EVERY = 3
 
 
 def person_tracks_from_result(result, require_track_id: bool = False) -> list[dict]:
@@ -1074,10 +1077,8 @@ if should_process and input_mode == "photo" and target_media_path is not None:
         )
         result = results[0]
         tracks = person_tracks_from_result(result)
-        accessory_dets = (
-            accessory_detector.detect(frame)
-            if accessory_detector is not None and accessory_detector.available
-            else []
+        accessory_dets = detect_on_head_crops(
+            accessory_detector, frame, tracks, include_full_frame=True
         )
         frame_class_counts = {"person": len(tracks)}
         for det in accessory_dets:
@@ -1237,6 +1238,7 @@ elif should_process and input_mode == "video" and target_media_path is not None:
     # before it counts toward the unique-person total.
     person_registry = PersonTrackRegistry()
     tot_p = tot_cap = tot_mask = tot_gls = tot_hd = tot_none = 0
+    acc_cache = {}   # track_id -> (person box, accessories) from the last accessory pass
 
     # Person tracking needs a firmer confidence gate than the UI slider default
     # so flickering low-score boxes stop spawning throwaway track IDs.
@@ -1282,11 +1284,7 @@ elif should_process and input_mode == "video" and target_media_path is not None:
                         )
                         result = results[0]
                         person_tracks = person_tracks_from_result(result, require_track_id=True)
-                        accessory_dets = (
-                            accessory_detector.detect(frame)
-                            if accessory_detector is not None and accessory_detector.available
-                            else []
-                        )
+                        accessory_dets = []
 
                     # 5-7. Only tracks that survive several frames become people.
                     for t in person_tracks:
@@ -1310,24 +1308,47 @@ elif should_process and input_mode == "video" and target_media_path is not None:
                             unique_tracks_by_class.setdefault(cls_name, set()).add(
                                 int(box.id[0])
                             )
-                    acc_map = associate_accessories_to_tracks(
-                        person_tracks, accessory_dets, head_fraction=0.52
+                    # The accessory model is the slow stage, so it runs on head
+                    # crops every ACCESSORY_EVERY frames; in between, each person
+                    # keeps their last accessories, shifted to follow the box.
+                    acc_frame = use_unified or (
+                        bool(person_tracks) and frame_idx % ACCESSORY_EVERY == 0
                     )
-                    for t in person_tracks:
-                        t["accessories"] = acc_map.get(t["track_id"], [])
+                    if not use_unified and acc_frame:
+                        accessory_dets = detect_on_head_crops(
+                            accessory_detector, frame, person_tracks
+                        )
+
+                    if acc_frame:
+                        acc_map = associate_accessories_to_tracks(
+                            person_tracks, accessory_dets, head_fraction=0.52
+                        )
+                        for t in person_tracks:
+                            t["accessories"] = acc_map.get(t["track_id"], [])
+                            acc_cache[t["track_id"]] = (list(t["xyxy"]), t["accessories"])
+                    else:
+                        acc_map = {}
+                        for t in person_tracks:
+                            cached = acc_cache.get(t["track_id"])
+                            t["accessories"] = (
+                                translate_accessories(cached[1], cached[0], t["xyxy"])
+                                if cached else []
+                            )
 
                     # 5. Store accessory observations per persistent track ID.
                     #    Provisional voting only drives the live HUD; the
                     #    authoritative decision happens after the last frame.
+                    #    Only frames the accessory model actually saw are votes.
                     if person_tracks:
                         state_mgr.update(frame_idx, person_tracks)
-                        for t in person_tracks:
-                            tid = t["track_id"]
-                            state_mgr.update_state(tid, t.get("accessories", []), frame_idx)
-
-                        if accessory_values_available:
+                        if acc_frame:
                             for t in person_tracks:
-                                state_mgr.apply_temporal_voting(t["track_id"], VOTING)
+                                tid = t["track_id"]
+                                state_mgr.update_state(tid, t.get("accessories", []), frame_idx)
+
+                            if accessory_values_available:
+                                for t in person_tracks:
+                                    state_mgr.apply_temporal_voting(t["track_id"], VOTING)
 
                     tot_p = person_registry.unique_person_count
                     if accessory_values_available:
@@ -1437,7 +1458,7 @@ elif should_process and input_mode == "video" and target_media_path is not None:
             "-pix_fmt", "yuv420p",
             "-movflags", "+faststart",
             out_final
-        ], capture_output=True, timeout=120)
+        ], capture_output=True, timeout=1800)
         if res.returncode == 0 and os.path.exists(out_final) and os.path.getsize(out_final) > 0:
             play_path = out_final
         else:
