@@ -14,7 +14,9 @@
 /coverage
 
 # next.js
+node_modules/
 /.next/
+.next/
 /out/
 
 # production
@@ -30,9 +32,10 @@ yarn-debug.log*
 yarn-error.log*
 .pnpm-debug.log*
 
-# local env only; frontend/.env.example stays tracked
+# local env only; .env.example stays tracked
 .env.local
 .env*.local
+*.log
 
 # vercel
 .vercel
@@ -40,3 +43,4 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+.env*

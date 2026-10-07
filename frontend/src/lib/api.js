@@ -69,6 +69,34 @@ export function analyzeVideo(file) {
   return request("/api/analyze/video", { method: "POST", body });
 }
 
+export function startAnalysis(file) {
+  const body = new FormData();
+  body.append("video", file);
+  return request("/api/analysis/start", { method: "POST", body });
+}
+
+export function getAnalysisStatus(analysisId) {
+  return request(`/api/analysis/${encodeURIComponent(analysisId)}/status`);
+}
+
+export function analysisStreamUrl(analysisId) {
+  return endpoint(`/api/analysis/${encodeURIComponent(analysisId)}/stream`);
+}
+
+export function analysisFrameUrl(analysisId) {
+  return endpoint(`/api/analysis/${encodeURIComponent(analysisId)}/frame`);
+}
+
+export function analysisVideoUrl(analysisId) {
+  return endpoint(`/api/analysis/${encodeURIComponent(analysisId)}/video`);
+}
+
+export function absoluteApiUrl(path) {
+  if (!path) return "";
+  if (/^https?:\/\//i.test(path)) return path;
+  return endpoint(path.startsWith("/") ? path : `/${path}`);
+}
+
 export function reportJsonUrl(analysisId) {
   return endpoint(`/api/reports/${encodeURIComponent(analysisId)}/json`);
 }

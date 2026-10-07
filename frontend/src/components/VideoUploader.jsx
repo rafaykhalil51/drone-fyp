@@ -1,5 +1,5 @@
 import { useRef, useState } from "react";
-import { analyzeVideo } from "@/lib/api";
+import { startAnalysis } from "@/lib/api";
 
 const ALLOWED = [".mp4", ".mov", ".avi", ".mkv"];
 
@@ -14,7 +14,7 @@ function formatSize(bytes) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function VideoUploader({ backendOnline, onComplete }) {
+export default function VideoUploader({ backendOnline, processing, progressText, onStart, completed }) {
   const inputRef = useRef(null);
   const [file, setFile] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -35,7 +35,7 @@ export default function VideoUploader({ backendOnline, onComplete }) {
   }
 
   async function onAnalyze() {
-    if (!file || busy) return;
+    if (!file || busy || processing) return;
     if (backendOnline === false) {
       setError("Backend offline. Start the API, then try again.");
       return;
@@ -43,8 +43,8 @@ export default function VideoUploader({ backendOnline, onComplete }) {
     setBusy(true);
     setError("");
     try {
-      const result = await analyzeVideo(file);
-      onComplete(result);
+      const started = await startAnalysis(file);
+      onStart(started);
     } catch (err) {
       console.error("Analysis error:", err);
       if (err.code === "offline") setError("Backend offline. The video was not sent.");
@@ -60,7 +60,7 @@ export default function VideoUploader({ backendOnline, onComplete }) {
     <section className="flex h-full flex-col gap-4 rounded-2xl border border-cyan-400/15 bg-[#0d1117] p-5">
       <div>
         <p className="text-[11px] font-semibold tracking-[0.22em] text-cyan-300/80">
-          SURVEILLANCE FEED // TACTICAL VIEWPORT
+          FEED CONTROL
         </p>
         <p className="mt-2 text-sm text-slate-400">Upload a surveillance clip. Supported formats: MP4, MOV, AVI, MKV.</p>
       </div>
@@ -76,7 +76,7 @@ export default function VideoUploader({ backendOnline, onComplete }) {
 
       <button
         type="button"
-        disabled={busy}
+        disabled={busy || processing}
         onClick={() => inputRef.current?.click()}
         className="rounded-xl border border-cyan-400/30 bg-cyan-400/10 px-4 py-3 text-sm font-semibold tracking-[0.16em] text-cyan-100 transition hover:bg-cyan-400/20 disabled:cursor-not-allowed disabled:opacity-50"
       >
@@ -94,18 +94,18 @@ export default function VideoUploader({ backendOnline, onComplete }) {
 
       <button
         type="button"
-        disabled={!file || busy}
+        disabled={!file || busy || processing}
         onClick={onAnalyze}
         className="rounded-xl bg-cyan-400 px-4 py-3 text-sm font-semibold tracking-[0.18em] text-slate-950 transition hover:bg-cyan-300 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
       >
-        {busy ? "ANALYZING" : "ANALYZE VIDEO"}
+        {busy || processing ? "ANALYZING" : completed ? "ANALYZE AGAIN" : "ANALYZE VIDEO"}
       </button>
 
-      {busy ? (
+      {busy || processing ? (
         <div className="overflow-hidden rounded-xl border border-cyan-400/20 bg-black/50 px-4 py-4">
           <p className="text-xs font-semibold tracking-[0.22em] text-cyan-200">ANALYSIS IN PROGRESS</p>
           <p className="mt-2 truncate text-sm text-slate-300">{file?.name}</p>
-          <p className="mt-1 text-xs text-slate-500">Waiting for the backend to finish. No progress percentage is available.</p>
+          <p className="mt-1 text-xs text-slate-500">{progressText || "Waiting for the first annotated frame."}</p>
           <div className="aegis-scan mt-4 h-1.5 overflow-hidden rounded-full bg-slate-800">
             <span />
           </div>

@@ -61,7 +61,7 @@ def build_writer(path: str, fps: float, w: int, h: int) -> cv2.VideoWriter:
     return writer
 
 
-def main(config_path: str = "config.yaml"):
+def main(config_path: str = "config.yaml", frame_observer=None):
     cfg = load_config(config_path)
     setup_logging(cfg.get("logging", {}).get("level", "INFO"))
     logger = logging.getLogger("main")
@@ -194,6 +194,18 @@ def main(config_path: str = "config.yaml"):
                 # Step 9: Visualize with bounding boxes, labels, and Live Totals HUD
                 annotated = visualizer.draw(frame, tracks, counter=line_counter, live_totals=live_totals)
                 writer.write(annotated)
+                if frame_observer is not None:
+                    try:
+                        frame_observer({
+                            "annotated": annotated,
+                            "frame_index": frame_idx,
+                            "fps": fps,
+                            "total_frames": int(source.total_frames or 0),
+                            "live_totals": live_totals,
+                            "states": state_mgr.all_states(),
+                        })
+                    except Exception:
+                        logger.exception("Live frame observer failed. Analysis continues.")
 
                 frame_idx += 1
                 if frame_idx % 50 == 0:

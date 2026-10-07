@@ -5,7 +5,9 @@ import AnalysisResults from "@/components/AnalysisResults";
 import Header from "@/components/Header";
 import StatCard from "@/components/StatCard";
 import VideoUploader from "@/components/VideoUploader";
-import { getHealth, getModelStatus } from "@/lib/api";
+import { absoluteApiUrl, analysisStreamUrl, getAnalysisStatus, getHealth, getModelStatus } from "@/lib/api";
+
+const ANALYSIS_KEY = "aegis.analysisId";
 
 const INITIAL_SUMMARY = {
   total_unique_persons: 0,
@@ -23,6 +25,13 @@ export default function Home() {
   const [summary, setSummary] = useState(INITIAL_SUMMARY);
   const [result, setResult] = useState(null);
   const [statusNote, setStatusNote] = useState("");
+  const [analysisId, setAnalysisId] = useState(null);
+  const [processing, setProcessing] = useState(false);
+  const [streamUrl, setStreamUrl] = useState("");
+  const [videoUrl, setVideoUrl] = useState("");
+  const [videoDetail, setVideoDetail] = useState("");
+  const [liveTracks, setLiveTracks] = useState(null);
+  const [progressText, setProgressText] = useState("");
   const statusInFlight = useRef(false);
 
   const refreshStatus = useCallback(async () => {
@@ -62,17 +71,110 @@ export default function Home() {
     return () => clearInterval(timer);
   }, [refreshStatus]);
 
-  function onComplete(analysis) {
-    setResult(analysis);
+  function applySummary(next) {
     setSummary({
-      total_unique_persons: analysis?.summary?.total_unique_persons ?? null,
-      wearing_cap: analysis?.summary?.wearing_cap ?? null,
-      wearing_mask: analysis?.summary?.wearing_mask ?? null,
-      wearing_glasses: analysis?.summary?.wearing_glasses ?? null,
-      wearing_headphones: analysis?.summary?.wearing_headphones ?? null,
-      plain: analysis?.summary?.plain ?? null,
+      total_unique_persons: next?.total_unique_persons ?? null,
+      wearing_cap: next?.wearing_cap ?? null,
+      wearing_mask: next?.wearing_mask ?? null,
+      wearing_glasses: next?.wearing_glasses ?? null,
+      wearing_headphones: next?.wearing_headphones ?? null,
+      plain: next?.plain ?? null,
     });
   }
+
+  function showCompleted(id, status) {
+    setAnalysisId(id);
+    setResult(status.result);
+    applySummary(status.result.summary);
+    setLiveTracks(null);
+    setStreamUrl("");
+    setVideoUrl(status.video_ready ? absoluteApiUrl(status.video_url) : "");
+    setVideoDetail(status.video_detail || "");
+    setProcessing(false);
+    setProgressText("");
+    window.sessionStorage.setItem(ANALYSIS_KEY, id);
+  }
+
+  function onStart(started) {
+    const id = started?.analysis_id;
+    if (!id) return;
+    setAnalysisId(id);
+    setProcessing(true);
+    setResult(null);
+    setLiveTracks(null);
+    setStreamUrl(analysisStreamUrl(id));
+    setVideoUrl("");
+    setVideoDetail("");
+    applySummary(INITIAL_SUMMARY);
+    setProgressText("Waiting for the first annotated frame.");
+    setStatusNote("");
+    window.sessionStorage.setItem(ANALYSIS_KEY, id);
+  }
+
+  useEffect(() => {
+    const saved = window.sessionStorage.getItem(ANALYSIS_KEY);
+    if (!saved) return undefined;
+    let stopped = false;
+
+    getAnalysisStatus(saved)
+      .then((status) => {
+        if (stopped) return;
+        if (status.status === "completed" && status.result) {
+          showCompleted(saved, status);
+          return;
+        }
+        if (status.status === "processing") {
+          setAnalysisId(saved);
+          setProcessing(true);
+          setStreamUrl(analysisStreamUrl(saved));
+          setVideoUrl("");
+          if (status.summary) applySummary(status.summary);
+          if (Array.isArray(status.tracks)) setLiveTracks(status.tracks);
+        }
+      })
+      .catch(() => {
+        window.sessionStorage.removeItem(ANALYSIS_KEY);
+      });
+
+    return () => {
+      stopped = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!analysisId || !processing) return undefined;
+    let stopped = false;
+
+    async function poll() {
+      try {
+        const status = await getAnalysisStatus(analysisId);
+        if (stopped) return;
+        if (status.summary) applySummary(status.summary);
+        if (Array.isArray(status.tracks)) setLiveTracks(status.tracks);
+        if (status.total_frames) {
+          setProgressText(`Frame ${status.current_frame || 0} of ${status.total_frames}.`);
+        } else if (status.current_frame) {
+          setProgressText(`Frame ${status.current_frame}.`);
+        }
+        if (status.status === "completed" && status.result) {
+          showCompleted(analysisId, status);
+        } else if (status.status === "failed") {
+          setProcessing(false);
+          setProgressText("");
+          setStatusNote(status.detail || "Analysis failed.");
+        }
+      } catch (error) {
+        console.error("Live status error:", error);
+      }
+    }
+
+    poll();
+    const timer = setInterval(poll, 800);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }, [analysisId, processing]);
 
   return (
     <main className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-6 sm:px-6 lg:px-8">
@@ -98,8 +200,20 @@ export default function Home() {
       </section>
 
       <section className="grid gap-4 lg:grid-cols-[320px_1fr]">
-        <VideoUploader backendOnline={backendOnline} onComplete={onComplete} />
-        <AnalysisResults result={result} />
+        <VideoUploader
+          backendOnline={backendOnline}
+          processing={processing}
+          progressText={progressText}
+          onStart={onStart}
+          completed={Boolean(result)}
+        />
+        <AnalysisResults
+          result={result}
+          streamUrl={processing ? streamUrl : ""}
+          videoUrl={processing ? "" : videoUrl}
+          videoDetail={videoDetail}
+          liveTracks={processing ? liveTracks : null}
+        />
       </section>
 
       <footer className="flex flex-col gap-1 border-t border-white/10 pt-4 text-[11px] tracking-[0.16em] text-slate-500 sm:flex-row sm:justify-between">
